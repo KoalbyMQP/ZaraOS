@@ -43,10 +43,9 @@ build:
     
     mkdir -p ZaraOS/output ZaraOS/dl
     
-    podman run --rm \
-        -v "$(pwd):/workspace:Z" \
-        -v "zaraos-nix:/nix:Z" \
-        zaraos-builder
+    podman run --rm -it -v \
+        "$(pwd):/workspace:Z" \
+        zaraos-builder bash
 
 clean:
     #!/usr/bin/env bash
@@ -62,13 +61,3 @@ clean:
 container-build:
     echo -e "{{BLUE}}Building container image{{NC}}"
     podman build -t zaraos-builder -f infra/container/builder/Containerfile infra/container/builder/
-
-# Build using container
-container-run:
-    #!/usr/bin/env bash
-    echo -e "{{BLUE}}Running container{{NC}}"
-    mkdir -p ZaraOS/output ZaraOS/dl
-    podman run --rm \
-        -v "$(pwd):/workspace:Z" \
-        -v "zaraos-nix:/nix:Z" \
-        zaraos-builder
