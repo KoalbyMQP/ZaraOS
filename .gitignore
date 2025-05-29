@@ -1,0 +1,62 @@
+# .gitignore
+
+# Note: this was AI generated but is actually not that bad so we will keep it for now :)
+
+# Nix
+result
+result-*
+.direnv/
+
+# Buildroot generated files
+ZaraOS/buildroot/
+ZaraOS/buildroot
+**/output/
+**/.config
+**/.config.old
+**/.auto.deps
+**/..config.tmp
+**/.br2-external.mk
+**/dl/
+
+# Build artifacts and caches
+*.img
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.zip
+build/
+dist/
+target/
+
+# Temporary files
+*~
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.*.sw?
+
+# Logs
+*.log
+logs/
+
+# OS specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Local development overrides
+local.mk
+*.local
+.env.local
