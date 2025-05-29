@@ -1,7 +1,3 @@
-# ./ZaraOS/external/configs/zaraos_pi5_defconfig
-
-# TODO: Verify Pi 5 support in Buildroot 2024.11.x
-
 BR2_aarch64=y
 BR2_cortex_a76=y
 BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_6=y
