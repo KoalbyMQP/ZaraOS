@@ -51,6 +51,7 @@
           perl
           cpio
           flock
+          file
         ];
 
         # Dev-only tools
