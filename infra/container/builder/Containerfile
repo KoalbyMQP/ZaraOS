@@ -1,0 +1,21 @@
+# FIXME: For github actions we will need a lot simpler of a settup (maybe caching)
+
+FROM nixos/nix:latest
+
+RUN nix-env -iA nixpkgs.bashInteractive nixpkgs.git
+
+RUN mkdir -p /etc/nix && \
+    echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf
+
+RUN mkdir -p /usr/bin && \
+    nix-env -iA nixpkgs.file nixpkgs.perl && \
+    ln -sf /root/.nix-profile/bin/file /usr/bin/file && \
+    ln -sf /root/.nix-profile/bin/perl /usr/bin/perl
+
+WORKDIR /workspace
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["just", "build"]

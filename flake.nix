@@ -1,3 +1,4 @@
+# FIXME: setup flag should be set in justfile not in nix configs (to avoid burrying them!)
 {
   description = "ZaraOS: ML-optimized Raspberry Pi OS with Integrated Package Manager";
 
@@ -5,7 +6,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     buildroot-src = {
-      url = "github:buildroot/buildroot/2025.02.x"; # FIXME: is pinning this version ideal? 
+      url = "github:buildroot/buildroot/2025.02.x";
       flake = false;
     };
   };
@@ -15,19 +16,8 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         
-        commonPackages = with pkgs; [
-          git
-          just
-          btop
-          tree
-          jq
-          yq-go
-          curl
-          wget
-        ];
-
+        # Build dependencies only
         buildrootDeps = with pkgs; [
-          # Essential build tools
           gcc
           gnumake
           binutils
@@ -40,128 +30,94 @@
           gnugrep
           which
           file
-          
-          # Cross-compilation toolchain deps
           bison
           flex
           gperf
           texinfo
           help2man
-          
-          # Archive handling
           gnutar
           gzip
           bzip2
           xz
           unzip
-          
-          # Version control
           git
           subversion
           mercurial
-          
-          # Network tools for downloading sources
           rsync
-          
-          # Python for Buildroot scripts
           python3
-          
-          # Additional tools
           bc
           ncurses5
           pkg-config
+          perl
+          cpio
+          flock
         ];
 
-        piCrossDeps = with pkgs; [
-          pkgsCross.aarch64-multiplatform.stdenv.cc
-          qemu
+        # Dev-only tools
+        devTools = with pkgs; [
+          podman
+          just
+          btop
+          tree
+          jq
+          yq-go
+          curl
+          wget
         ];
 
-        docAndTestDeps = with pkgs; [
-          # cross-platform
-         ] ++ lib.optionals stdenv.isLinux [
-          # Linux-only
-          lshw
-          usbutils
-          pciutils
-          parted
-          dosfstools
-          e2fsprogs
-        ];
+        # Common shell setup
+        commonShellHook = ''
+          export BUILDROOT_SRC="${buildroot-src}"
+          
+          if [ ! -L "ZaraOS/buildroot" ]; then
+            mkdir -p ZaraOS
+            ln -sf "$BUILDROOT_SRC" ZaraOS/buildroot
+          fi
 
-        darwinPackages = with pkgs; lib.optionals stdenv.isDarwin [
-          darwin.cctools
-          libiconv
-        ];
-
-        linuxPackages = with pkgs; lib.optionals stdenv.isLinux [
-          strace
-          ltrace
-        ];
+          export ZARAOS_ROOT="$(pwd)"
+          export BR2_EXTERNAL="$ZARAOS_ROOT/ZaraOS/external"
+        '';
 
       in
       {
         devShells = {
-          default = pkgs.mkShell {
-            buildInputs = commonPackages 
-                       ++ buildrootDeps 
-                       ++ piCrossDeps 
-                       ++ docAndTestDeps 
-                       ++ darwinPackages 
-                       ++ linuxPackages;
+          # Development environment with extra tools
+          dev = pkgs.mkShell {
+            buildInputs = buildrootDeps ++ devTools;
 
             shellHook = ''
-              # Simple colors
               BLUE='\033[0;34m'
               GREEN='\033[0;32m'
               YELLOW='\033[1;33m'
-              RED='\033[0;31m'
-              NC='\033[0m' # No Color
+              NC='\033[0m'
 
               echo -e "\n''${BLUE}=======================================''${NC}"
               echo -e "''${BLUE}  ZaraOS Development Environment''${NC}"
               echo -e "''${BLUE}=======================================''${NC}"
               echo -e "Platform: ''${YELLOW}${system}''${NC}"
-              echo -e "Buildroot: ''${YELLOW}2025.02.x''${NC}" # FIXME: print actual version 
+              echo -e "Buildroot: ''${YELLOW}2025.02.x''${NC}"
               echo ""
 
-              # Set up Buildroot path
-              export BUILDROOT_SRC="${buildroot-src}"
-              
-              # Link to buildroot in nix store
-              if [ ! -L "ZaraOS/buildroot" ]; then
-                mkdir -p ZaraOS
-                ln -sf "$BUILDROOT_SRC" ZaraOS/buildroot
-              fi
-
-              export ZARAOS_ROOT="" # TODO:: add corretc path here
-              export PATH="$ZARAOS_ROOT/tools:$PATH"
+              ${commonShellHook}
 
               echo -e "''${GREEN}✓ ZaraOS development environment ready''${NC}"
             '';
-
-            BR2_EXTERNAL = "./ZaraOS/external/"; # external buildroot configs
           };
 
-          ci = pkgs.mkShell {
-            buildInputs = commonPackages ++ buildrootDeps;
+          # Build environment - buildroot deps only
+          build = pkgs.mkShell {
+            buildInputs = buildrootDeps;
             
             shellHook = ''
-              export BUILDROOT_SRC="${buildroot-src}"
-              export ZARAOS_ROOT="$(pwd)"
-              export MAKEFLAGS="-j$(nproc)"
+              ${commonShellHook}
               
-              # Link to buildroot in nix store
-              if [ ! -L "ZaraOS/buildroot" ]; then
-                mkdir -p ZaraOS
-                ln -sf "$BUILDROOT_SRC" ZaraOS/buildroot
-              fi
+              export MAKEFLAGS="-j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8)"
             '';
           };
-        };
 
-        # Package the development tools
-        packages = {
+
+
+          default = self.devShells.${system}.dev;
         };
       });
 }

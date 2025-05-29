@@ -9,42 +9,44 @@ NC := '\033[0m'
 default:
     @just --list
 
-# Build ZaraOS for Pi 5 TODO: verify support with booting on pi!
+# Build ZaraOS
+#TODO: 
+# - verify support with booting on pi!
+# - add support for other pis
+# - make commands more rich
+# FIXME:
+# - this should be done in a container for even more reliability (this *WILL* be a problem)
+# - make the build command multithreaded currentsetup is hardcoded
+
+# Build ZaraOS
 build:
     #!/usr/bin/env bash
     set -e
     
-    CONFIG_PATH="ZaraOS/external/configs/zaraos_pi5_defconfig"
-    OUTPUT_DIR="$(pwd)/ZaraOS/output"
-    DL_DIR="$(pwd)/ZaraOS/dl"
+    echo -e "{{BLUE}}Building ZaraOS in container{{NC}}"
 
-    # FIXME: Make this a flag to the build command!
-    export MAKEFLAGS="-j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8)"
-
-    echo -e "{{BLUE}}Building ZaraOS{{NC}}"
-    
-    if [ ! -f "$CONFIG_PATH" ]; then
-        echo -e "{{RED}}Config not found: $CONFIG_PATH{{NC}}"
-        exit 1
+    # Check if podman machine is running
+    if ! podman machine list 2>/dev/null | grep -q "Currently running"; then
+        echo -e "{{YELLOW}}Podman machine not running, starting...{{NC}}"
+        if ! podman machine list 2>/dev/null | grep -q "podman-machine-default"; then
+            echo -e "{{YELLOW}}Initializing Podman machine...{{NC}}"
+            podman machine init
+        fi
+        podman machine start
     fi
     
-    # Clean PATH to avoid spaces/tabs
-    export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$(echo "$PATH" | tr -d ' \t\n')"
+    # Ensure container image exists
+    if ! podman image exists zaraos-builder; then
+        echo -e "{{YELLOW}}Container image not found, building...{{NC}}"
+        just container-build
+    fi
     
-    # Create directories
-    mkdir -p "$OUTPUT_DIR" "$DL_DIR"
+    mkdir -p ZaraOS/output ZaraOS/dl
     
-    export BR2_EXTERNAL="$(pwd)/ZaraOS/external"
-    MAKE_FLAGS="HOSTCFLAGS=-Wno-format-security HOSTCXXFLAGS=-Wno-format-security O=$OUTPUT_DIR BR2_DL_DIR=$DL_DIR"
-    
-    echo -e "{{YELLOW}}Configuring{{NC}}"
-    make -C ZaraOS/buildroot $MAKE_FLAGS zaraos_pi5_defconfig
-    
-    echo -e "{{YELLOW}}Building{{NC}}"
-    make -C ZaraOS/buildroot $MAKE_FLAGS
-    
-    echo -e "{{GREEN}}Build complete{{NC}}"
-    echo "Images: $OUTPUT_DIR/images/"
+    podman run --rm \
+        -v "$(pwd):/workspace:Z" \
+        -v "zaraos-nix:/nix:Z" \
+        zaraos-builder
 
 clean:
     #!/usr/bin/env bash
@@ -56,24 +58,17 @@ clean:
         echo "Nothing to clean"
     fi
 
-status:
+# Build container image
+container-build:
+    echo -e "{{BLUE}}Building container image{{NC}}"
+    podman build -t zaraos-builder -f infra/container/builder/Containerfile infra/container/builder/
+
+# Build using container
+container-run:
     #!/usr/bin/env bash
-    echo -e "{{BLUE}}ZaraOS Status{{NC}}"
-    
-    if [ -L "ZaraOS/buildroot" ]; then
-        echo -e "{{GREEN}}Buildroot linked{{NC}}"
-    else
-        echo -e "{{RED}}Buildroot not linked{{NC}}"
-    fi
-    
-    if [ -f "ZaraOS/external/configs/zaraos_pi5_defconfig" ]; then
-        echo -e "{{GREEN}}Pi 5 config present{{NC}}"
-    else
-        echo -e "{{RED}}Pi 5 config missing{{NC}}"
-    fi
-    
-    if [ -d "ZaraOS/output/images" ]; then
-        echo -e "{{GREEN}}Build artifacts present{{NC}}"
-    else
-        echo -e "{{YELLOW}}No build artifacts{{NC}}"
-    fi
+    echo -e "{{BLUE}}Running container{{NC}}"
+    mkdir -p ZaraOS/output ZaraOS/dl
+    podman run --rm \
+        -v "$(pwd):/workspace:Z" \
+        -v "zaraos-nix:/nix:Z" \
+        zaraos-builder
