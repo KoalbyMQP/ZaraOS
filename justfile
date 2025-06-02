@@ -22,6 +22,7 @@ default:
 build:
     #!/usr/bin/env bash
     set -e
+    just clean
     
     echo -e "{{BLUE}}Building ZaraOS in container{{NC}}"
 
