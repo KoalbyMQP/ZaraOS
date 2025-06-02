@@ -7,10 +7,14 @@ RUN nix-env -iA nixpkgs.bashInteractive nixpkgs.git
 RUN mkdir -p /etc/nix && \
     echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf
 
-RUN mkdir -p /usr/bin && \
-    nix-env -iA nixpkgs.file nixpkgs.perl && \
+# Add FHS compatibility for buildroot
+RUN mkdir -p /bin /usr/bin && \
+    nix-env -iA nixpkgs.file nixpkgs.perl nixpkgs.coreutils && \
     ln -sf /root/.nix-profile/bin/file /usr/bin/file && \
-    ln -sf /root/.nix-profile/bin/perl /usr/bin/perl
+    ln -sf /root/.nix-profile/bin/perl /usr/bin/perl && \
+    ln -sf /root/.nix-profile/bin/true /bin/true && \
+    ln -sf /root/.nix-profile/bin/false /bin/false && \
+    ln -sf /root/.nix-profile/bin/sh /bin/sh
 
 WORKDIR /workspace
 
