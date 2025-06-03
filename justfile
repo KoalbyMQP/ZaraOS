@@ -22,43 +22,61 @@ default:
 build:
     #!/usr/bin/env bash
     set -e
-    just clean
     
-    echo -e "{{BLUE}}Building ZaraOS in container{{NC}}"
-
-    # Check if podman machine is running
-    if ! podman machine list 2>/dev/null | grep -q "Currently running"; then
-        echo -e "{{YELLOW}}Podman machine not running, starting...{{NC}}"
-        if ! podman machine list 2>/dev/null | grep -q "podman-machine-default"; then
-            echo -e "{{YELLOW}}Initializing Podman machine...{{NC}}"
-            podman machine init
-        fi
-        podman machine start
+    echo -e "{{BLUE}}Building ZaraOS in clean buildroot environment{{NC}}"
+    
+    if ! podman image exists localhost/zaraos-builder:latest; then
+        echo -e "{{YELLOW}}Building clean buildroot container...{{NC}}"
+        just container-build-clean
     fi
     
-    # Ensure container image exists
-    if ! podman image exists zaraos-builder; then
-        echo -e "{{YELLOW}}Container image not found, building...{{NC}}"
-        just container-build
+    sudo rm -rf ZaraOS/output ZaraOS/dl 2>/dev/null || rm -rf ZaraOS/output ZaraOS/dl
+    mkdir -p ZaraOS/output ZaraOS/dl
+    
+    podman run --rm -it \
+        --userns=keep-id \
+        -v "$(pwd):/workspace:Z" \
+        localhost/zaraos-builder:latest
+
+container-build-clean:
+    echo -e "{{BLUE}}Building clean buildroot container{{NC}}"
+    podman build -t zaraos-builder -f infra/container/builder/Containerfile infra/container/builder/
+
+# Alternative: build without cleaning (for debugging)
+build-dirty:
+    #!/usr/bin/env bash
+    set -e
+    
+    echo -e "{{YELLOW}}Building ZaraOS without cleaning output{{NC}}"
+    
+    if ! podman image exists localhost/zaraos-builder:latest; then
+        echo -e "{{YELLOW}}Building clean buildroot container...{{NC}}"
+        just container-build-clean
     fi
     
     mkdir -p ZaraOS/output ZaraOS/dl
     
-    podman run --rm -it -v \
-        "$(pwd):/workspace:Z" \
-        zaraos-builder bash
+    podman run --rm -it \
+        --userns=keep-id \
+        -v "$(pwd):/workspace:Z" \
+        localhost/zaraos-builder:latest
 
 clean:
     #!/usr/bin/env bash
     echo -e "{{YELLOW}}Cleaning build artifacts{{NC}}"
     if [ -d "ZaraOS/output" ] || [ -d "ZaraOS/dl" ]; then
-        rm -rf ZaraOS/output ZaraOS/dl
+        sudo rm -rf ZaraOS/output ZaraOS/dl 2>/dev/null || rm -rf ZaraOS/output ZaraOS/dl
         echo -e "{{GREEN}}Cleaned{{NC}}"
     else
         echo "Nothing to clean"
     fi
 
-# Build container image
-container-build:
-    echo -e "{{BLUE}}Building container image{{NC}}"
-    podman build -t zaraos-builder -f infra/container/builder/Containerfile infra/container/builder/
+# Debug: check what containers exist
+list-containers:
+    echo -e "{{BLUE}}Available container images:{{NC}}"
+    podman images | grep -E "(zaraos|buildroot)" || echo "No ZaraOS containers found"
+
+clean-containers:
+    echo -e "{{YELLOW}}Removing ZaraOS containers{{NC}}"
+    podman rmi zaraos-builder 2>/dev/null || echo "zaraos-builder not found"
+    podman rmi localhost/zaraos-builder:latest 2>/dev/null || echo "localhost/zaraos-builder:latest not found"

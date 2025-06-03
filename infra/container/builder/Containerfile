@@ -1,25 +1,41 @@
-# FIXME: For github actions we will need a lot simpler of a settup (maybe caching)
+FROM ubuntu:22.04
 
-FROM nixos/nix:latest
+RUN apt-get update && apt-get install -y \
+    # Core build tools
+    build-essential gcc g++ gfortran \
+    # Buildroot specific requirements  
+    libncurses5-dev bc bison flex gperf \
+    # Compression and archives
+    unzip gzip bzip2 xz-utils cpio \
+    # Network tools
+    wget rsync \
+    # Version control
+    git subversion mercurial \
+    # Documentation tools
+    texinfo help2man \
+    # Python for build scripts
+    python3 python3-dev python3-setuptools \
+    # Additional tools
+    file debianutils sed gawk \
+    # Libraries that buildroot might need
+    libssl-dev pkg-config \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN nix-env -iA nixpkgs.bashInteractive nixpkgs.git
+RUN useradd -m -s /bin/bash buildroot && \
+    echo "buildroot ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-RUN mkdir -p /etc/nix && \
-    echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf
+USER buildroot
+WORKDIR /home/buildroot
 
-# Add FHS compatibility for buildroot
-RUN mkdir -p /bin /usr/bin && \
-    nix-env -iA nixpkgs.file nixpkgs.perl nixpkgs.coreutils && \
-    ln -sf /root/.nix-profile/bin/file /usr/bin/file && \
-    ln -sf /root/.nix-profile/bin/perl /usr/bin/perl && \
-    ln -sf /root/.nix-profile/bin/true /bin/true && \
-    ln -sf /root/.nix-profile/bin/false /bin/false && \
-    ln -sf /root/.nix-profile/bin/sh /bin/sh
+# Pre-download buildroot to avoid network issues during build
+RUN git clone --depth 1 --branch 2025.02.x https://github.com/buildroot/buildroot.git /home/buildroot/buildroot
 
 WORKDIR /workspace
 
-COPY entrypoint.sh /entrypoint.sh
+COPY --chown=buildroot:buildroot entrypoint.sh /entrypoint.sh
+USER root
 RUN chmod +x /entrypoint.sh
+USER buildroot
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["build"]
