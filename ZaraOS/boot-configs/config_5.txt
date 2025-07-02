@@ -4,6 +4,7 @@
 # See http://buildroot.org/manual.html#rootfs-custom
 # and http://elinux.org/RPiconfig for a description of config.txt syntax
 
+# Raspberry Pi 5 configuration
 kernel=Image
 
 # To use an external initramfs file

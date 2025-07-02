@@ -1,0 +1,3 @@
+# ZaraOS Buildroot External Configuration
+# This file defines custom packages and configuration options
+# specific to ZaraOS that extend the base Buildroot functionality
