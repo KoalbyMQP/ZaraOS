@@ -1,0 +1,132 @@
+name: Build Container
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'infra/containers/builder/Dockerfile'
+      - 'infra/containers/builder/build-zaraos.sh'
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: 'Force build even if no changes detected'
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/zaraos-builder
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Calculate file hash
+        id: hash
+        run: |
+          # Create hash of Dockerfile and build script
+          HASH=$(cat infra/containers/builder/Dockerfile infra/containers/builder/build-zaraos.sh | sha256sum | cut -d' ' -f1)
+          echo "current_hash=$HASH" >> $GITHUB_OUTPUT
+          echo "Current hash: $HASH"
+
+      - name: Check previous hash
+        id: cache-check
+        uses: actions/cache@v4
+        with:
+          path: .container-hash
+          key: container-hash-${{ steps.hash.outputs.current_hash }}
+          lookup-only: true
+
+      - name: Determine if build needed
+        id: should-build
+        run: |
+          SHOULD_BUILD="false"
+          
+          # Always build on manual dispatch with force option
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.force_build }}" == "true" ]]; then
+            SHOULD_BUILD="true"
+            echo "Build reason: Manual dispatch with force"
+          # Build if hash changed (cache miss)
+          elif [[ "${{ steps.cache-check.outputs.cache-hit }}" != "true" ]]; then
+            SHOULD_BUILD="true"
+            echo "Build reason: Hash changed"
+          else
+            echo "Build reason: Hash unchanged, skipping build"
+          fi
+          
+          echo "should_build=$SHOULD_BUILD" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        if: steps.should-build.outputs.should_build == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: steps.should-build.outputs.should_build == 'true' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        if: steps.should-build.outputs.should_build == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Always tag as latest
+            type=raw,value=latest
+            # Add hash tag for tracking
+            type=raw,value=hash-${{ steps.hash.outputs.current_hash }}
+
+      - name: Build container image
+        if: steps.should-build.outputs.should_build == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: infra/containers/builder
+          file: infra/containers/builder/Dockerfile
+          push: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDROOT_VERSION=2025.02.x
+
+      - name: Save hash to cache
+        if: steps.should-build.outputs.should_build == 'true'
+        run: |
+          echo "${{ steps.hash.outputs.current_hash }}" > .container-hash
+          
+      - name: Cache hash for future runs
+        if: steps.should-build.outputs.should_build == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .container-hash
+          key: container-hash-${{ steps.hash.outputs.current_hash }}
+
+      - name: Build summary
+        run: |
+          echo "## Container Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Hash**: \`${{ steps.hash.outputs.current_hash }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build needed**: ${{ steps.should-build.outputs.should_build }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ steps.should-build.outputs.should_build }}" == "true" ]]; then
+            if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+              echo "- **Action**: Built and pushed to registry" >> $GITHUB_STEP_SUMMARY
+              echo "- **Registry**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- **Action**: Built for testing only (develop branch)" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "- **Action**: Skipped (no changes detected)" >> $GITHUB_STEP_SUMMARY
+          fi
