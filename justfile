@@ -7,7 +7,6 @@ BLUE := '\033[0;34m'
 NC := '\033[0m'
 
 IMAGE_NAME := "zaraos-builder"
-REGISTRY := "ghcr.io/your-username"
 
 default:
     @just --list
@@ -29,16 +28,6 @@ build:
 build-container:
     echo -e "{{BLUE}}Building container image{{NC}}"
     podman build -t zaraos-builder -f infra/containers/builder/Dockerfile .
-
-# Push container to registry
-push-container:
-    echo -e "{{BLUE}}Pushing container to registry{{NC}}"
-    podman tag {{IMAGE_NAME}} {{REGISTRY}}/{{IMAGE_NAME}}:latest
-    podman push {{REGISTRY}}/{{IMAGE_NAME}}:latest
-
-# Pull latest container
-pull-container:
-    podman pull {{REGISTRY}}/{{IMAGE_NAME}}:latest
 
 # Build and test locally before pushing
 test-container:
