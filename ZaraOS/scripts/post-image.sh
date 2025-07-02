@@ -2,9 +2,9 @@
 
 set -e
 
-BOARD_DIR="$(dirname $0)"
+BOARD_DIR="$(dirname $0)/.."
 BOARD_NAME="$(basename ${BOARD_DIR})"
-GENIMAGE_CFG="${BOARD_DIR}/genimage-${BOARD_NAME}.cfg"
+GENIMAGE_CFG="${BOARD_DIR}/imaging/genimage-${BOARD_NAME}.cfg"
 GENIMAGE_TMP="${BUILD_DIR}/genimage.tmp"
 
 # generate genimage from template if a board specific variant doesn't exists
@@ -20,7 +20,7 @@ if [ ! -e "${GENIMAGE_CFG}" ]; then
 	FILES+=( "${KERNEL}" )
 
 	BOOT_FILES=$(printf '\\t\\t\\t"%s",\\n' "${FILES[@]}")
-	sed "s|#BOOT_FILES#|${BOOT_FILES}|" "${BOARD_DIR}/genimage.cfg.in" \
+	sed "s|#BOOT_FILES#|${BOOT_FILES}|" "${BOARD_DIR}/imaging/genimage.cfg.in" \
 		> "${GENIMAGE_CFG}"
 fi
 
