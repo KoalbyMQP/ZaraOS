@@ -1,25 +1,66 @@
+# ===================================================================
+# ZaraOS Image Generation Configuration Template
+# ===================================================================
+# This file defines the disk image layout for ZaraOS SD card images.
+# It's processed by genimage to create the final sdcard.img file.
+#
+# Documentation:
+# - Genimage Tool: https://github.com/pengutronix/genimage
+# - Buildroot Genimage: https://buildroot.org/downloads/manual/manual.html#_the_genimage_cfg_file
+# - Image Layout Guide: https://github.com/pengutronix/genimage/blob/master/README.rst
+#
+# This template is processed by post-image.sh which substitutes:
+# - #BOOT_FILES# with actual boot files list
+#
+# The resulting image layout:
+# ┌─────────────────┬─────────────────────────────────────┐
+# │ boot (FAT32)    │ rootfs (EXT4)                      │
+# │ 32MB            │ ~120MB (configurable)              │
+# │ - Firmware      │ - Linux root filesystem            │
+# │ - Kernel        │ - Applications                     │
+# │ - Device Trees  │ - User data                        │
+# └─────────────────┴─────────────────────────────────────┘
+# ===================================================================
+
+# Boot partition (FAT32) - Contains Raspberry Pi firmware and kernel
 image boot.vfat {
 	vfat {
 		files = {
 #BOOT_FILES#
 		}
 	}
-
+	
+	# Boot partition size - 32MB should be sufficient for:
+	# - Raspberry Pi firmware (~15MB)
+	# - Kernel images (~10MB)  
+	# - Device tree files (~1MB)
+	# - Configuration files (<1MB)
 	size = 32M
 }
 
+# Main SD card image with partition table
 image sdcard.img {
 	hdimage {
+		# Use MBR partition table (compatible with all Pi models)
+		# GPT could be used for larger images if needed
 	}
 
+	# Boot partition - FAT32, bootable
 	partition boot {
-		partition-type = 0xC
-		bootable = "true"
+		partition-type = 0xC    # FAT32 LBA
+		bootable = "true"       # Mark as bootable for Pi firmware
 		image = "boot.vfat"
 	}
 
+	# Root filesystem partition - EXT4  
 	partition rootfs {
-		partition-type = 0x83
+		partition-type = 0x83   # Linux filesystem
 		image = "rootfs.ext4"
+		# Size automatically determined from rootfs.ext4 image
 	}
 }
+
+# Additional partitions can be added here if needed:
+# - Data partition for user files
+# - Swap partition (though not recommended for SD cards)
+# - Recovery partition for system updates
