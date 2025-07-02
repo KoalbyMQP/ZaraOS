@@ -28,7 +28,7 @@ build:
 # Build container image locally
 build-container:
     echo -e "{{BLUE}}Building container image{{NC}}"
-    podman build -t {{IMAGE_NAME}} -f infra/containers/builder/Dockerfile infra/containers/builder/
+    podman build -t zaraos-builder -f infra/containers/builder/Dockerfile .
 
 # Push container to registry
 push-container:
