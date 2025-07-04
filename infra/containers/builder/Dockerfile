@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM docker.io/library/ubuntu:22.04
 
 RUN apt-get update && apt-get install -y \
     build-essential gcc g++ gfortran \
@@ -10,14 +10,13 @@ RUN apt-get update && apt-get install -y \
     libssl-dev pkg-config && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN git clone --depth 1 --branch 2025.02.x \
-    https://github.com/buildroot/buildroot.git /opt/buildroot
+COPY ZaraOS/buildroot /opt/buildroot
 
 RUN useradd -m -s /bin/bash builder
 USER builder
 WORKDIR /workspace
 
-COPY build-zaraos.sh /usr/local/bin/
+COPY infra/containers/builder/build-zaraos.sh /usr/local/bin/
 USER root
 RUN chmod +x /usr/local/bin/build-zaraos.sh
 USER builder
