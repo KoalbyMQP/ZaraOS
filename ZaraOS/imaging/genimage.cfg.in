@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ===================================================================
 # ZaraOS Image Generation Configuration Template
 # ===================================================================
@@ -23,12 +24,15 @@
 # ===================================================================
 
 # Boot partition (FAT32) - Contains Raspberry Pi firmware and kernel
+=======
+>>>>>>> develop
 image boot.vfat {
 	vfat {
 		files = {
 #BOOT_FILES#
 		}
 	}
+<<<<<<< HEAD
 	
 	# Boot partition size - 32MB should be sufficient for:
 	# - Raspberry Pi firmware (~15MB)
@@ -64,3 +68,24 @@ image sdcard.img {
 # - Data partition for user files
 # - Swap partition (though not recommended for SD cards)
 # - Recovery partition for system updates
+=======
+
+	size = 32M
+}
+
+image sdcard.img {
+	hdimage {
+	}
+
+	partition boot {
+		partition-type = 0xC
+		bootable = "true"
+		image = "boot.vfat"
+	}
+
+	partition rootfs {
+		partition-type = 0x83
+		image = "rootfs.ext4"
+	}
+}
+>>>>>>> develop

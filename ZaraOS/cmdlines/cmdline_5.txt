@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ===================================================================
 # ZaraOS Kernel Command Line for Raspberry Pi 5
 # ===================================================================
@@ -33,3 +34,6 @@ console=tty1 console=ttyAMA10,115200
 # - splash: Enable boot splash screen
 # - loglevel=3: Control kernel log verbosity (0-7)
 # - init=/sbin/init: Specify init program (usually automatic)
+=======
+root=/dev/mmcblk0p2 rootwait console=tty1 console=ttyAMA10,115200
+>>>>>>> develop

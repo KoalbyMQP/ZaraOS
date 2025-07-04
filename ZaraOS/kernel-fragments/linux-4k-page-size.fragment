@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ===================================================================
 # ZaraOS Kernel Configuration Fragment - 4K Page Size
 # ===================================================================
@@ -33,3 +34,6 @@ CONFIG_ARM64_4K_PAGES=y
 # - Kernel performance
 # - Application compatibility
 # - Standard Linux behavior
+=======
+CONFIG_ARM64_4K_PAGES=y
+>>>>>>> develop

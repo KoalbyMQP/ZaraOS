@@ -52,7 +52,10 @@
           cpio
           flock
           file
+<<<<<<< HEAD
           qemu_full  # Full QEMU with all architectures
+=======
+>>>>>>> develop
         ];
 
         # Dev-only tools

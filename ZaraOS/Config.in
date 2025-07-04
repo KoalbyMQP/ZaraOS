@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ===================================================================
 # ZaraOS Buildroot External Configuration
 # ===================================================================
@@ -17,3 +18,8 @@
 # Add your custom packages and configuration options here
 # Example:
 # source "$BR2_EXTERNAL_ZaraOS_PATH/package/your-package/Config.in"
+=======
+# ZaraOS Buildroot External Configuration
+# This file defines custom packages and configuration options
+# specific to ZaraOS that extend the base Buildroot functionality
+>>>>>>> develop

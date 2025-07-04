@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ===================================================================
 # ZaraOS External Tree Description
 # ===================================================================
@@ -14,3 +15,10 @@
 
 name: ZaraOS
 desc: A custom OS image build for the Humanoid Robots MQP
+=======
+# ZaraOS External Tree Description
+# Identifies this directory as a Buildroot external tree
+# for ZaraOS customizations targeting Raspberry Pi ML workloads
+name: ZaraOS
+desc: A custom OS image build only for the Humanoid Robots MQP
+>>>>>>> develop
