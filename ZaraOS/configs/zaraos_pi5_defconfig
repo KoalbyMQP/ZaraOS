@@ -77,14 +77,13 @@ BR2_LINUX_KERNEL_CUSTOM_TARBALL=y
 
 # Specific Pi kernel commit - known stable version for Pi 5
 # This version includes Pi 5 hardware support and optimizations
-BR2_LINUX_KERNEL_CUSTOM_TARBALL_LOCATION="$(call github,raspberrypi,linux,576cc10e1ed50a9eacffc7a05c796051d7343ea4)/linux-576cc10e1ed50a9eacffc7a05c796051d7343ea4.tar.gz"
-
+BR2_LINUX_KERNEL_CUSTOM_TARBALL_LOCATION="$(call github,raspberrypi,linux,8f77e03530f65209a377d25023e912b288e039cd)/linux-8f77e03530f65209a377d25023e912b288e039cd.tar.gz"
 # Use Pi 5 specific kernel defconfig (bcm2712)
 BR2_LINUX_KERNEL_DEFCONFIG="bcm2712"
 
 # Apply custom kernel configuration fragment
 # This enables 4K page size for better performance
-BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragments/linux-4k-page-size.fragment"
+# BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragments/linux-4k-page-size.fragment"
 
 # Enable device tree support
 BR2_LINUX_KERNEL_DTS_SUPPORT=y
