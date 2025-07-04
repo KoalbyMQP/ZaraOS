@@ -30,10 +30,17 @@ BR2_cortex_a76=y
 # └─────────────────────────────────────────────────────────────────┘
 
 # Use Linux 6.6 headers (matching Pi 5 kernel version)
-BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_6=y
+#BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_6=y
 
 # Enable C++ support for applications that need it
-BR2_TOOLCHAIN_BUILDROOT_CXX=y
+#BR2_TOOLCHAIN_BUILDROOT_CXX=y
+
+# For now for speed lets use the default Buildroot toolchain
+# This seems to be safe enough for now
+BR2_TOOLCHAIN_EXTERNAL=y
+BR2_TOOLCHAIN_EXTERNAL_BOOTLIN=y
+BR2_TOOLCHAIN_EXTERNAL_BOOTLIN_AARCH64_GLIBC_STABLE=y
+BR2_TOOLCHAIN_EXTERNAL_CXX=y
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ BUILD SYSTEM CONFIGURATION                                      │
@@ -85,7 +92,8 @@ BR2_LINUX_KERNEL_DTS_SUPPORT=y
 # Build Pi 5 device tree files
 # bcm2712-rpi-5-b: Standard Pi 5 Model B
 # bcm2712d0-rpi-5-b: Pi 5 revision D0 (if different)
-BR2_LINUX_KERNEL_INTREE_DTS_NAME="broadcom/bcm2712-rpi-5-b broadcom/bcm2712d0-rpi-5-b"
+#BR2_LINUX_KERNEL_INTREE_DTS_NAME="broadcom/bcm2712-rpi-5-b broadcom/bcm2712d0-rpi-5-b"
+BR2_LINUX_KERNEL_INTREE_DTS_NAME="broadcom/bcm2712-rpi-5-b"
 
 # Kernel requires OpenSSL for module signing
 BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y

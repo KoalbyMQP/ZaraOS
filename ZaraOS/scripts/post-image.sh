@@ -1,6 +1,6 @@
 #!/bin/bash
 # ===================================================================
-# ZaraOS Post-Image Script
+# ZaraOS Post-Image Script - FIXED VERSION
 # ===================================================================
 # This script runs after all filesystem images are created and
 # generates the final SD card image using genimage. It handles
@@ -28,17 +28,12 @@ echo "════════════════════════�
 echo "ZaraOS Post-Image: Generating SD Card Image"
 echo "═══════════════════════════════════════════════════════════════"
 
-# Determine the board directory (where this script is located)
-BOARD_DIR="$(dirname $0)/.."
-BOARD_NAME="$(basename ${BOARD_DIR})"
-
-echo "Board directory: ${BOARD_DIR}"
-echo "Board name: ${BOARD_NAME}"
-
-# Check for board-specific genimage configuration
-GENIMAGE_CFG="${BOARD_DIR}/imaging/genimage-${BOARD_NAME}.cfg"
+# Use hardcoded paths for ZaraOS
+BOARD_DIR="/workspace/ZaraOS"
+GENIMAGE_CFG="${BINARIES_DIR}/genimage.cfg"
 GENIMAGE_TMP="${BUILD_DIR}/genimage.tmp"
 
+echo "ZaraOS directory: ${BOARD_DIR}"
 echo "Genimage config: ${GENIMAGE_CFG}"
 echo "Temporary directory: ${GENIMAGE_TMP}"
 
@@ -46,60 +41,78 @@ echo "Temporary directory: ${GENIMAGE_TMP}"
 # │ GENIMAGE CONFIGURATION GENERATION                               │
 # └─────────────────────────────────────────────────────────────────┘
 
-# Check for board-specific genimage configuration first
-GENIMAGE_CFG="${BOARD_DIR}/imaging/genimage-${BOARD_NAME}.cfg"
+# Always generate genimage configuration from template
+echo ""
+echo "Generating genimage config from template"
 
-# Generate genimage configuration from template if board-specific doesn't exist
-if [ ! -e "${GENIMAGE_CFG}" ]; then
-    echo ""
-    echo "Generating genimage config from template"
-    
-    GENIMAGE_CFG="${BINARIES_DIR}/genimage.cfg"
-    FILES=()
+FILES=()
 
-    echo "Collecting boot files:"
-    
-    # Collect all device tree files
-    for dtb_file in "${BINARIES_DIR}"/*.dtb; do
-        if [ -f "$dtb_file" ]; then
-            filename=$(basename "$dtb_file")
-            FILES+=( "$filename" )
-            echo "   Device Tree: $filename"
-        fi
-    done
-    
-    # Collect all Raspberry Pi firmware files
-    for fw_file in "${BINARIES_DIR}"/rpi-firmware/*; do
-        if [ -f "$fw_file" ]; then
-            filename="${fw_file#${BINARIES_DIR}/}"
-            FILES+=( "$filename" )
-            echo "   Firmware: $filename"
-        fi
-    done
+echo "Collecting boot files:"
 
-    # Determine kernel image name from config.txt
-    KERNEL=$(sed -n 's/^kernel=//p' "${BINARIES_DIR}/rpi-firmware/config.txt" 2>/dev/null || echo "zImage")
-    if [ -f "${BINARIES_DIR}/${KERNEL}" ]; then
-        FILES+=( "${KERNEL}" )
-        echo "   Kernel: ${KERNEL}"
-    else
-        echo "   Warning: Kernel file '${KERNEL}' not found"
+# Collect all device tree files
+for dtb_file in "${BINARIES_DIR}"/*.dtb; do
+    if [ -f "$dtb_file" ]; then
+        filename=$(basename "$dtb_file")
+        FILES+=( "$filename" )
+        echo "   Device Tree: $filename"
     fi
+done
 
-    # Generate the boot files list for genimage template
-    BOOT_FILES=$(printf '\\t\\t\\t"%s",\\n' "${FILES[@]}")
-    
-    echo ""
-    echo "Creating genimage configuration"
-    
-    # Substitute the boot files list in the template
-    sed "s|#BOOT_FILES#|${BOOT_FILES}|" "${BOARD_DIR}/imaging/genimage.cfg.in" \
-        > "${GENIMAGE_CFG}"
-    
-    echo "Genimage configuration created with ${#FILES[@]} boot files"
+# Collect all Raspberry Pi firmware files - Use basename only
+for fw_file in "${BINARIES_DIR}"/rpi-firmware/*; do
+    if [ -f "$fw_file" ]; then
+        filename=$(basename "$fw_file")
+        FILES+=( "$filename" )
+        echo "   Firmware: $filename"
+    fi
+done
+
+# Determine kernel image name from config.txt
+KERNEL=$(sed -n 's/^kernel=//p' "${BINARIES_DIR}/rpi-firmware/config.txt" 2>/dev/null || echo "zImage")
+if [ -f "${BINARIES_DIR}/${KERNEL}" ]; then
+    FILES+=( "${KERNEL}" )
+    echo "   Kernel: ${KERNEL}"
 else
-    echo "Using board-specific genimage configuration: ${GENIMAGE_CFG}"
+    echo "   Warning: Kernel file '${KERNEL}' not found"
 fi
+
+# Generate the boot files list for genimage template
+BOOT_FILES=$(printf '\\t\\t\\t"%s",\\n' "${FILES[@]}")
+
+echo ""
+echo "Creating genimage configuration"
+
+# Substitute the boot files list in the template
+sed "s|#BOOT_FILES#|${BOOT_FILES}|" "${BOARD_DIR}/imaging/genimage.cfg.in" \
+    > "${GENIMAGE_CFG}"
+
+echo "Genimage configuration created with ${#FILES[@]} boot files"
+
+# DEBUG: Show what was actually generated
+echo ""
+echo "=== DEBUG: Generated genimage.cfg content ==="
+cat "${GENIMAGE_CFG}"
+echo "=== END DEBUG ==="
+echo ""
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ COPY FIRMWARE FILES TO ROOT LEVEL FOR GENIMAGE                  │
+# └─────────────────────────────────────────────────────────────────┘
+
+echo ""
+echo "Copying firmware files to root level for genimage"
+
+# Copy firmware files from rpi-firmware subdirectory to root level
+# This ensures genimage can find them without subdirectory paths
+for fw_file in "${BINARIES_DIR}"/rpi-firmware/*; do
+    if [ -f "$fw_file" ]; then
+        filename=$(basename "$fw_file")
+        if [ ! -f "${BINARIES_DIR}/${filename}" ]; then
+            cp "$fw_file" "${BINARIES_DIR}/${filename}"
+            echo "   Copied: $filename"
+        fi
+    fi
+done
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ IMAGE VALIDATION                                                │
@@ -111,8 +124,8 @@ echo "Validating required images"
 # Check that essential files exist
 REQUIRED_FILES=(
     "${BINARIES_DIR}/rootfs.ext4"
-    "${BINARIES_DIR}/rpi-firmware/config.txt"
-    "${BINARIES_DIR}/rpi-firmware/cmdline.txt"
+    "${BINARIES_DIR}/config.txt"
+    "${BINARIES_DIR}/cmdline.txt"
 )
 
 for file in "${REQUIRED_FILES[@]}"; do

@@ -10,7 +10,7 @@
 # - Image Layout Guide: https://github.com/pengutronix/genimage/blob/master/README.rst
 #
 # This template is processed by post-image.sh which substitutes:
-# - #BOOT_FILES# with actual boot files list
+# - Boot files list will be inserted here
 #
 # The resulting image layout:
 # ┌─────────────────┬─────────────────────────────────────┐
