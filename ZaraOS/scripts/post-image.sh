@@ -67,6 +67,11 @@ for fw_file in "${BINARIES_DIR}"/rpi-firmware/*; do
     fi
 done
 
+# Handle overlays directory specially - we need to preserve directory structure
+if [ -d "${BINARIES_DIR}/rpi-firmware/overlays" ]; then
+    echo "   Overlays directory: overlays/ ($(ls "${BINARIES_DIR}/rpi-firmware/overlays" | wc -l) files)"
+fi
+
 # Determine kernel image name from config.txt
 KERNEL=$(sed -n 's/^kernel=//p' "${BINARIES_DIR}/rpi-firmware/config.txt" 2>/dev/null || echo "zImage")
 if [ -f "${BINARIES_DIR}/${KERNEL}" ]; then
@@ -114,6 +119,15 @@ for fw_file in "${BINARIES_DIR}"/rpi-firmware/*; do
     fi
 done
 
+# Copy overlays directory maintaining directory structure
+if [ -d "${BINARIES_DIR}/rpi-firmware/overlays" ]; then
+    if [ ! -d "${BINARIES_DIR}/overlays" ]; then
+        cp -r "${BINARIES_DIR}/rpi-firmware/overlays" "${BINARIES_DIR}/overlays"
+        overlay_count=$(find "${BINARIES_DIR}/overlays" -type f | wc -l)
+        echo "   Copied: overlays/ directory with ${overlay_count} files"
+    fi
+fi
+
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ IMAGE VALIDATION                                                │
 # └─────────────────────────────────────────────────────────────────┘
@@ -138,10 +152,24 @@ for file in "${REQUIRED_FILES[@]}"; do
     fi
 done
 
+# Check overlays directory
+if [ -d "${BINARIES_DIR}/overlays" ]; then
+    overlay_count=$(find "${BINARIES_DIR}/overlays" -type f | wc -l)
+    echo "   overlays/: ${overlay_count} files"
+else
+    echo "   Warning: overlays/ directory not found"
+fi
+
 # Display boot partition contents summary
 echo ""
 echo "Boot partition will contain:"
 cat "${GENIMAGE_CFG}" | grep -A 10 "files = {" | grep '"' | sed 's/.*"\(.*\)".*/   • \1/'
+
+# Show overlays directory information
+if [ -d "${BINARIES_DIR}/overlays" ]; then
+    overlay_count=$(find "${BINARIES_DIR}/overlays" -type f | wc -l)
+    echo "   • overlays/ directory (${overlay_count} overlay files)"
+fi
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ GENIMAGE EXECUTION                                              │
