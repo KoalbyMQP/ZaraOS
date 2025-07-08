@@ -29,18 +29,12 @@ BR2_cortex_a76=y
 # │ TOOLCHAIN CONFIGURATION                                         │
 # └─────────────────────────────────────────────────────────────────┘
 
-# Use Linux 6.6 headers (matching Pi 5 kernel version)
-#BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_6=y
-
-# Enable C++ support for applications that need it
-#BR2_TOOLCHAIN_BUILDROOT_CXX=y
-
-# For now for speed lets use the default Buildroot toolchain
-# This seems to be safe enough for now
-BR2_TOOLCHAIN_EXTERNAL=y
-BR2_TOOLCHAIN_EXTERNAL_BOOTLIN=y
-BR2_TOOLCHAIN_EXTERNAL_BOOTLIN_AARCH64_GLIBC_STABLE=y
-BR2_TOOLCHAIN_EXTERNAL_CXX=y
+BR2_TOOLCHAIN_BUILDROOT=y
+BR2_TOOLCHAIN_BUILDROOT_CXX=y
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_TARBALL=y
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_TARBALL_LOCATION="$(call github,raspberrypi,linux,8f77e03530f65209a377d25023e912b288e039cd)/linux-8f77e03530f65209a377d25023e912b288e039cd.tar.gz"
+BR2_TOOLCHAIN_HEADERS_SAME_AS_KERNEL=y
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_12=y
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ BUILD SYSTEM CONFIGURATION                                      │
@@ -80,10 +74,12 @@ BR2_LINUX_KERNEL_CUSTOM_TARBALL=y
 BR2_LINUX_KERNEL_CUSTOM_TARBALL_LOCATION="$(call github,raspberrypi,linux,8f77e03530f65209a377d25023e912b288e039cd)/linux-8f77e03530f65209a377d25023e912b288e039cd.tar.gz"
 # Use Pi 5 specific kernel defconfig (bcm2712)
 BR2_LINUX_KERNEL_DEFCONFIG="bcm2712"
+#BR2_LINUX_KERNEL_DEFCONFIG="defconfig"
 
 # Apply custom kernel configuration fragment
 # This enables 4K page size for better performance
 # BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragments/linux-4k-page-size.fragment"
+BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragments/linux-pi5.fragment"
 
 # Enable device tree support
 BR2_LINUX_KERNEL_DTS_SUPPORT=y
@@ -92,10 +88,14 @@ BR2_LINUX_KERNEL_DTS_SUPPORT=y
 # bcm2712-rpi-5-b: Standard Pi 5 Model B
 # bcm2712d0-rpi-5-b: Pi 5 revision D0 (if different)
 #BR2_LINUX_KERNEL_INTREE_DTS_NAME="broadcom/bcm2712-rpi-5-b broadcom/bcm2712d0-rpi-5-b"
-BR2_LINUX_KERNEL_INTREE_DTS_NAME="broadcom/bcm2712-rpi-5-b"
+BR2_LINUX_KERNEL_INTREE_DTS_NAME="broadcom/bcm2712-rpi-5-b broadcom/bcm2712-d-rpi-5-b broadcom/bcm2712d0-rpi-5-b"
 
 # Kernel requires OpenSSL for module signing
 BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
+
+# FORCE 16k PAGE SIZE FOR PI 5 OPTIM THIS HAS TO ALSO BE CHANGES IN THE KERNAL PATCH! 
+BR2_ARM64_PAGE_SIZE_16K=y  
+BR2_ARM64_PAGE_SIZE="16K"
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ PACKAGE SELECTION                                               │

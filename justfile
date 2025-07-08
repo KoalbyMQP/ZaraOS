@@ -38,3 +38,13 @@ clean:
 clean-containers:
     echo -e "{{YELLOW}}Removing local containers{{NC}}"
     podman rmi {{IMAGE_NAME}} 2>/dev/null || echo "{{IMAGE_NAME}} not found"
+
+get-kernel-sha256:
+    #!/usr/bin/env bash
+    echo -e "{{GREEN}}Fetching kernel SHA256 hash...{{NC}}"
+    wget https://github.com/raspberrypi/linux/archive/8f77e03530f65209a377d25023e912b288e039cd.tar.gz
+    echo -e "{{GREEN}}Calculating SHA256 hash...{{NC}}"
+    SHA256_OUTPUT=$(sha256sum 8f77e03530f65209a377d25023e912b288e039cd.tar.gz)
+    echo -e "{{YELLOW}}Removing tarball...{{NC}}"
+    rm -f 8f77e03530f65209a377d25023e912b288e039cd.tar.gz
+    echo -e "{{GREEN}}SHA256 hash: {{NC}}${SHA256_OUTPUT}"
