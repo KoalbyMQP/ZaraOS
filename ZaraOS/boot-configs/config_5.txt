@@ -37,25 +37,6 @@ kernel=Image
 # If text disappears off screen edges, comment this out
 disable_overscan=1
 
-# DEBUG: Force HDMI output even if no display detected (for 1440p monitor issues)
-hdmi_force_hotplug=1
-
-# DEBUG: Use safe HDMI mode for better compatibility with high-res monitors
-hdmi_safe=1
-
-# DEBUG: Try specific 1440p resolution settings
-# First try safe 1080p mode, then uncomment below for 1440p
-hdmi_group=1
-hdmi_mode=16
-
-# DEBUG: Uncomment these lines to force 1440p (2560x1440) if 1080p works
-# hdmi_group=2
-# hdmi_mode=87
-# hdmi_cvt=2560 1440 60 6 0 0 0
-
-# DEBUG: Force HDMI audio output (helps with display detection)
-hdmi_drive=2
-
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ MEMORY CONFIGURATION                                            │
 # └─────────────────────────────────────────────────────────────────┘
@@ -73,9 +54,6 @@ hdmi_drive=2
 
 # Note: Pi 5 uses dynamic memory management, these are fallback values
 
-# DEBUG: Significantly increased GPU memory for 1440p display support
-# gpu_mem=512
-
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ SERIAL CONSOLE CONFIGURATION                                    │
 # └─────────────────────────────────────────────────────────────────┘
@@ -88,7 +66,7 @@ hdmi_drive=2
 enable_uart=1
 
 # DEBUG: Enable detailed boot messages over UART
-#uart_2ndstage=1
+# uart_2ndstage=1
 
 # UART configuration for Pi 5
 # The Pi 5 has improved UART handling, but still benefits from
@@ -98,11 +76,9 @@ enable_uart=1
 # │ GRAPHICS DRIVERS                                                │
 # └─────────────────────────────────────────────────────────────────┘
 
-# DEBUG: Enable VC4 graphics driver for proper Pi 5 video output
 # This is required for modern video output on Pi 5
 dtoverlay=vc4-kms-v3d-pi5
 
-# DEBUG: Add boot delay to ensure proper hardware initialization
 boot_delay=5
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -147,11 +123,12 @@ boot_delay=5
 
 # Pi 5 has improved power management - these options tune behavior:
 
+# FIXME: before build turn off LEDs!
 # Power LED behavior (0=off, 1=on, heartbeat, etc.)
-# pwr_led_trigger=default
+pwr_led_trigger=heartbeat
 
 # Activity LED behavior  
-# act_led_trigger=default
+act_led_trigger=default
 
 # USB power output (Pi 5 can provide more power to USB devices)
 # Max USB output current in mA (default: 1200mA)

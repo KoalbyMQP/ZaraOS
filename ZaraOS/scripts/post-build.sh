@@ -121,25 +121,6 @@ EOF
 fi
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ DEVELOPMENT AND DEBUG HELPERS                                   │
-# └─────────────────────────────────────────────────────────────────┘
-
-# Create useful aliases for development
-if [ -d ${TARGET_DIR}/etc ]; then
-    cat > ${TARGET_DIR}/etc/profile.d/zaraos-aliases.sh << 'EOF'
-# ZaraOS development aliases
-alias ll='ls -la'
-alias temp='vcgencmd measure_temp'
-alias volts='vcgencmd measure_volts'
-alias freq='vcgencmd measure_clock arm'
-alias throttle='vcgencmd get_throttled'
-alias gpio='vcgencmd get_config'
-EOF
-    chmod +x ${TARGET_DIR}/etc/profile.d/zaraos-aliases.sh
-    echo "Created ZaraOS development aliases"
-fi
-
-# ┌─────────────────────────────────────────────────────────────────┐
 # │ SECURITY AND OPTIMIZATION                                       │
 # └─────────────────────────────────────────────────────────────────┘
 
@@ -152,11 +133,11 @@ if [ -d ${TARGET_DIR}/usr/share/doc ]; then
     echo "Cleaned documentation files"
 fi
 
-# Remove man pages (uncomment if space is critical)
-# if [ -d ${TARGET_DIR}/usr/share/man ]; then
-#     rm -rf ${TARGET_DIR}/usr/share/man/*
-#     echo "Cleaned man pages"
-# fi
+# Remove man pages
+if [ -d ${TARGET_DIR}/usr/share/man ]; then
+    rm -rf ${TARGET_DIR}/usr/share/man/*
+    echo "Cleaned man pages"
+fi
 
 # Set appropriate permissions for security
 echo "Setting file permissions"

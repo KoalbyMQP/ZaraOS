@@ -11,8 +11,7 @@
 #
 # Target: Raspberry Pi 5 B (4GB/8GB models)
 # Architecture: AArch64 (64-bit ARM)
-# Kernel: 6.6.x (Raspberry Pi kernel fork) 
-# FIXME: This Kernel image is out of date
+# Kernel: 6.12 (Raspberry Pi kernel fork) 
 # ===================================================================
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -77,18 +76,8 @@ BR2_LINUX_KERNEL_DEFCONFIG="bcm2712"
 #BR2_LINUX_KERNEL_DEFCONFIG="defconfig"
 
 # Apply custom kernel configuration fragment
-# This enables 4K page size for better performance
-# BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragments/linux-4k-page-size.fragment"
+# This enables 16K page size as standard for Pi 5
 BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragments/linux-pi5.fragment"
-
-# Enable device tree support
-#BR2_LINUX_KERNEL_DTS_SUPPORT=y
-
-# Build Pi 5 device tree files
-# bcm2712-rpi-5-b: Standard Pi 5 Model B
-# bcm2712d0-rpi-5-b: Pi 5 revision D0 (if different)
-#BR2_LINUX_KERNEL_INTREE_DTS_NAME="broadcom/bcm2712-rpi-5-b broadcom/bcm2712d0-rpi-5-b"
-#BR2_LINUX_KERNEL_INTREE_DTS_NAME="broadcom/bcm2712-rpi-5-b broadcom/bcm2712-d-rpi-5-b broadcom/bcm2712d0-rpi-5-b"
 
 # Kernel requires OpenSSL for module signing
 BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
@@ -160,5 +149,4 @@ BR2_PACKAGE_HOST_GENIMAGE=y
 BR2_PACKAGE_HOST_KMOD_XZ=y
 
 # MTOOLS for manipulating FAT filesystems
-
 BR2_PACKAGE_HOST_MTOOLS=y

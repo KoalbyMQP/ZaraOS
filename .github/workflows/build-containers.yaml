@@ -27,11 +27,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-<<<<<<< HEAD
-        with:
-          submodules: recursive
-=======
->>>>>>> develop
 
       - name: Calculate file hash
         id: hash
@@ -96,11 +91,7 @@ jobs:
         if: steps.should-build.outputs.should_build == 'true'
         uses: docker/build-push-action@v5
         with:
-<<<<<<< HEAD
-          context: .
-=======
           context: infra/containers/builder
->>>>>>> develop
           file: infra/containers/builder/Dockerfile
           push: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
           tags: ${{ steps.meta.outputs.tags }}
