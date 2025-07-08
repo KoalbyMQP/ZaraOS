@@ -93,13 +93,6 @@ sed "s|#BOOT_FILES#|${BOOT_FILES}|" "${BOARD_DIR}/imaging/genimage.cfg.in" \
 
 echo "Genimage configuration created with ${#FILES[@]} boot files"
 
-# DEBUG: Show what was actually generated
-echo ""
-echo "=== DEBUG: Generated genimage.cfg content ==="
-cat "${GENIMAGE_CFG}"
-echo "=== END DEBUG ==="
-echo ""
-
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ COPY FIRMWARE FILES TO ROOT LEVEL FOR GENIMAGE                  │
 # └─────────────────────────────────────────────────────────────────┘
