@@ -82,13 +82,13 @@ BR2_LINUX_KERNEL_DEFCONFIG="bcm2712"
 BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragments/linux-pi5.fragment"
 
 # Enable device tree support
-BR2_LINUX_KERNEL_DTS_SUPPORT=y
+#BR2_LINUX_KERNEL_DTS_SUPPORT=y
 
 # Build Pi 5 device tree files
 # bcm2712-rpi-5-b: Standard Pi 5 Model B
 # bcm2712d0-rpi-5-b: Pi 5 revision D0 (if different)
 #BR2_LINUX_KERNEL_INTREE_DTS_NAME="broadcom/bcm2712-rpi-5-b broadcom/bcm2712d0-rpi-5-b"
-BR2_LINUX_KERNEL_INTREE_DTS_NAME="broadcom/bcm2712-rpi-5-b broadcom/bcm2712-d-rpi-5-b broadcom/bcm2712d0-rpi-5-b"
+#BR2_LINUX_KERNEL_INTREE_DTS_NAME="broadcom/bcm2712-rpi-5-b broadcom/bcm2712-d-rpi-5-b broadcom/bcm2712d0-rpi-5-b"
 
 # Kernel requires OpenSSL for module signing
 BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
@@ -120,10 +120,9 @@ BR2_PACKAGE_RPI_FIRMWARE_CONFIG_FILE="$(BR2_EXTERNAL_ZaraOS_PATH)/boot-configs/c
 # Use ZaraOS Pi 5 specific kernel command line
 BR2_PACKAGE_RPI_FIRMWARE_CMDLINE_FILE="$(BR2_EXTERNAL_ZaraOS_PATH)/cmdlines/cmdline_5.txt"
 
-# Don't install device tree overlays (reduces boot partition size)
-# Enable if you need specific hardware overlays
-# BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB_OVERLAYS is not set
-
+# Always needed for hardware support
+BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB=y
+BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB_OVERLAYS=y
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ KERNEL MODULE SUPPORT                                           │
 # └─────────────────────────────────────────────────────────────────┘
