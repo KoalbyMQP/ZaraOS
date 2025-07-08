@@ -139,62 +139,6 @@ EOF
     echo "Created ZaraOS development aliases"
 fi
 
-# Basic Heartbeat to indicate system is alive
-# FIXME: This should probably be taken out for production
-cat > ${TARGET_DIR}/etc/init.d/S99boot_signal << 'EOF'
-#!/bin/sh
-case "$1" in
-    start)
-        echo "ZaraOS heartbeat starting..."
-        
-        # Initial "I'm alive" sequence
-        # Pattern: SHORT-short-LONG-LONG-short-SHORT (like a heartbeat)
-        echo 1 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-        sleep 0.1
-        echo 0 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-        sleep 0.1
-        
-        echo 1 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-        sleep 0.05
-        echo 0 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-        sleep 0.3
-        
-        echo 1 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-        sleep 0.3
-        echo 0 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-        sleep 0.1
-        
-        echo 1 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-        sleep 0.3
-        echo 0 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-        sleep 0.1
-        
-        echo 1 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-        sleep 0.05
-        echo 0 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-        sleep 0.1
-        
-        echo 1 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-        sleep 0.1
-        echo 0 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-        sleep 3.0
-        
-        # Then repeat every 10 seconds to show "still alive"
-        while true; do
-            echo 1 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-            sleep 0.1
-            echo 0 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-            sleep 0.1
-            echo 1 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-            sleep 0.1
-            echo 0 > /sys/class/leds/ACT/brightness 2>/dev/null || true
-            sleep 10.0
-        done &
-        ;;
-esac
-EOF
-chmod +x ${TARGET_DIR}/etc/init.d/S99boot_signal
-
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ SECURITY AND OPTIMIZATION                                       │
 # └─────────────────────────────────────────────────────────────────┘
