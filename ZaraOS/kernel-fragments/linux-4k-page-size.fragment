@@ -1,1 +1,35 @@
+# ===================================================================
+# ZaraOS Kernel Configuration Fragment - 4K Page Size
+# ===================================================================
+# This fragment configures the Linux kernel to use 4K page size
+# on AArch64 systems, optimizing for Raspberry Pi 5 performance.
+#
+# Documentation:
+# - Kernel Config Fragments: https://buildroot.org/downloads/manual/manual.html#_using_config_fragments
+# - ARM64 Page Sizes: https://www.kernel.org/doc/html/latest/arm64/memory.html
+# - Pi 5 Optimization: https://www.raspberrypi.com/documentation/computers/raspberry-pi.html
+#
+# Applied to: Linux kernel build for Raspberry Pi 5
+# Effect: Sets page size to 4KB instead of default (which may vary)
+#
+# Benefits of 4K pages:
+# - Better memory efficiency for small allocations
+# - Reduced memory fragmentation  
+# - Improved cache locality
+# - Standard page size for most ARM64 systems
+# - Compatible with more userspace applications
+# ===================================================================
+
+# Enable 4K page size for ARM64 architecture
+# This is typically the optimal choice for Raspberry Pi workloads
 CONFIG_ARM64_4K_PAGES=y
+
+# Note: Alternative page sizes available but not recommended for Pi:
+# - CONFIG_ARM64_16K_PAGES: Larger pages, may waste memory
+# - CONFIG_ARM64_64K_PAGES: Very large pages, typically for HPC workloads
+#
+# The 4K setting provides the best balance of:
+# - Memory utilization efficiency
+# - Kernel performance
+# - Application compatibility
+# - Standard Linux behavior

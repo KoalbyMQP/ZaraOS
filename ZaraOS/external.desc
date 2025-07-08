@@ -1,5 +1,16 @@
+# ===================================================================
 # ZaraOS External Tree Description
-# Identifies this directory as a Buildroot external tree
-# for ZaraOS customizations targeting Raspberry Pi ML workloads
+# ===================================================================
+# This file identifies this directory as a Buildroot external tree
+# for ZaraOS customizations targeting Raspberry Pi ML workloads.
+#
+# Documentation:
+# - Buildroot External Trees: https://buildroot.org/downloads/manual/manual.html#outside-br-custom
+# - External Tree Layout: https://buildroot.org/downloads/manual/manual.html#_layout_of_a_br2_external_tree
+#
+# The 'name' field is used by Buildroot to create variables like:
+# BR2_EXTERNAL_ZaraOS_PATH - pointing to this external tree's path
+# ===================================================================
+
 name: ZaraOS
-desc: A custom OS image build only for the Humanoid Robots MQP
+desc: A custom OS image build for the Humanoid Robots MQP
