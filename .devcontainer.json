@@ -1,7 +1,6 @@
 {
   "name": "ZaraOS Development Environment",
   "image": "ghcr.io/koalbymqp/zaraos-dev:latests",
-  "runArgs": ["--platform", "linux/amd64"],
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "version": "latest",
