@@ -113,12 +113,12 @@ fi
 # fi
 # echo "" >> /workspace/output/logs/build-summary.txt
 
-# Check kernel version in built image
-if [ -f "/workspace/output/Image" ]; then
-    echo "=== BUILT KERNEL INFO ===" >> /workspace/output/logs/build-summary.txt
-    strings "/workspace/output/Image" | grep "Linux version" | head -2 >> /workspace/output/logs/build-summary.txt
-    file "/workspace/output/Image" >> /workspace/output/logs/build-summary.txt
-fi
+# # Check kernel version in built image
+# if [ -f "/workspace/output/Image" ]; then
+#     echo "=== BUILT KERNEL INFO ===" >> /workspace/output/logs/build-summary.txt
+#     strings "/workspace/output/Image" | grep "Linux version" | head -2 >> /workspace/output/logs/build-summary.txt
+#     file "/workspace/output/Image" >> /workspace/output/logs/build-summary.txt
+#fi
 
 echo "Build complete!"
 echo "Final images available in: /workspace/output/"
