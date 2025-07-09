@@ -1,0 +1,41 @@
+{
+  "name": "ZaraOS Development Environment",
+  "image": "ghcr.io/koalbymqp/zaraos-dev:latests",
+  "runArgs": ["--platform", "linux/amd64"],
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "dockerDashComposeVersion": "v2"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "files.watcherExclude": {
+          "**/output/**": true,
+          "**/build/**": true,
+          "**/dl/**": true
+        }
+      },
+      "extensions": [
+        "ms-vscode.makefile-tools",
+        "redhat.vscode-yaml", 
+        "timonwong.shellcheck",
+        "ms-vscode.hexdump",
+        "ms-azuretools.vscode-docker",
+        "github.vscode-github-actions",
+        "streetsidesoftware.code-spell-checker",
+        "ms-vscode.cmake-tools",
+        "twxs.cmake",
+        "eamodio.gitlens"
+      ]
+    }
+  },
+  "workspaceFolder": "/workspace",
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ],
+  "postCreateCommand": "git config --global --add safe.directory /workspace",
+  "remoteUser": "vscode"
+}
