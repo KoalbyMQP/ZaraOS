@@ -1,15 +1,171 @@
-# Please note that this is only a sample, we recommend you to change it to fit
-# your needs.
-# You should override this file using BR2_PACKAGE_RPI_FIRMWARE_CONFIG_FILE.
-# See http://buildroot.org/manual.html#rootfs-custom
-# and http://elinux.org/RPiconfig for a description of config.txt syntax
+# ===================================================================
+# ZaraOS Boot Configuration for Raspberry Pi 5
+# ===================================================================
+# This file configures the Raspberry Pi 5 boot process and hardware
+# settings. It's read by the GPU firmware before the ARM CPU starts.
+#
+# Documentation:
+# - Raspberry Pi config.txt: https://www.raspberrypi.com/documentation/computers/config_txt.html
+# - Pi 5 Specific Options: https://www.raspberrypi.com/documentation/computers/config_txt.html
+# - Buildroot Pi Configs: https://buildroot.org/downloads/manual/manual.html
+#
+# Note: This file should be customized using BR2_PACKAGE_RPI_FIRMWARE_CONFIG_FILE
+# See: https://buildroot.org/downloads/manual/manual.html#rootfs-custom
+#
+# Pi 5 Changes from Pi 4:
+# - Different UART (ttyAMA10 vs ttyAMA0)
+# - No start_file/fixup_file needed (EEPROM boot)
+# - Enhanced power management
+# - PCIe support built-in
+# ===================================================================
 
-# Raspberry Pi 5 configuration
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ KERNEL CONFIGURATION                                            │
+# └─────────────────────────────────────────────────────────────────┘
+
+# Kernel image to load (64-bit ARM kernel for Pi 5)
 kernel=Image
 
-# To use an external initramfs file
-#initramfs rootfs.cpio.gz
+# Uncomment to use external initramfs file
+# initramfs rootfs.cpio.gz
 
-# Disable overscan assuming the display supports displaying the full resolution
-# If the text shown on the screen disappears off the edge, comment this out
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ DISPLAY CONFIGURATION                                           │
+# └─────────────────────────────────────────────────────────────────┘
+
+# Disable overscan - assumes display supports full resolution
+# If text disappears off screen edges, comment this out
 disable_overscan=1
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ MEMORY CONFIGURATION                                            │
+# └─────────────────────────────────────────────────────────────────┘
+
+# Pi 5 has 4GB or 8GB models - memory split not as critical
+# but still good to optimize for headless/minimal GUI usage
+
+# GPU memory allocation (in MB) by total system memory:
+# - For headless operation: 64MB is sufficient  
+# - For basic desktop: 128MB recommended
+# - For graphics-intensive: 256MB+
+#gpu_mem_256=128  # DEBUG: Increased from 64MB for better video support
+#gpu_mem_512=256  # DEBUG: Increased from 64MB for better video support  
+#gpu_mem_1024=512 # DEBUG: Increased from 64MB for better video support
+
+# Note: Pi 5 uses dynamic memory management, these are fallback values
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ SERIAL CONSOLE CONFIGURATION                                    │
+# └─────────────────────────────────────────────────────────────────┘
+
+# Pi 5 uses ttyAMA10 instead of ttyAMA0 for primary UART
+# This is handled in cmdline_5.txt, but UART configuration is here
+
+# Enable primary UART on GPIO 14/15 (pins 8/10)
+# This is essential for debugging and headless operation
+enable_uart=1
+
+# DEBUG: Enable detailed boot messages over UART
+# uart_2ndstage=1
+
+# UART configuration for Pi 5
+# The Pi 5 has improved UART handling, but still benefits from
+# explicit configuration for reliable serial console access
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ GRAPHICS DRIVERS                                                │
+# └─────────────────────────────────────────────────────────────────┘
+
+# This is required for modern video output on Pi 5
+dtoverlay=vc4-kms-v3d-pi5
+
+boot_delay=5
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ HARDWARE INTERFACE CONFIGURATION                                │
+# └─────────────────────────────────────────────────────────────────┘
+
+# Uncomment to enable hardware interfaces as needed:
+
+# I2C interface (for sensors, displays, etc.)
+# dtparam=i2c_arm=on
+
+# SPI interface (for additional sensors, displays)  
+# dtparam=spi=on
+
+# I2S audio interface (for audio applications)
+# dtparam=i2s=on
+
+# 1-Wire interface (for temperature sensors like DS18B20)
+# dtparam=w1-gpio=on
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ PERFORMANCE CONFIGURATION                                       │
+# └─────────────────────────────────────────────────────────────────┘
+
+# Pi 5 performance options:
+
+# Force maximum performance (disable CPU frequency scaling)
+# Useful for consistent performance in ML workloads
+# Warning: Increases power consumption and heat
+# force_turbo=1
+
+# Set ARM CPU frequency (in MHz)
+# Pi 5 default: 2400MHz, can be overclocked with adequate cooling
+# arm_freq=2400
+
+# Set GPU frequency (in MHz) - affects video processing performance
+# gpu_freq=800
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ POWER MANAGEMENT                                                │ 
+# └─────────────────────────────────────────────────────────────────┘
+
+# Pi 5 has improved power management - these options tune behavior:
+
+# FIXME: before build turn off LEDs!
+# Power LED behavior (0=off, 1=on, heartbeat, etc.)
+pwr_led_trigger=heartbeat
+
+# Activity LED behavior  
+act_led_trigger=default
+
+# USB power output (Pi 5 can provide more power to USB devices)
+# Max USB output current in mA (default: 1200mA)
+# max_usb_current=1
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ PCIE CONFIGURATION (Pi 5 Specific)                             │
+# └─────────────────────────────────────────────────────────────────┘
+
+# Pi 5 has built-in PCIe - enable if using PCIe devices
+# dtparam=pciex1
+
+# PCIe link speed (1, 2, or 3 for Gen1/Gen2/Gen3)
+# dtparam=pciex1_gen=3
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ ADDITIONAL CONFIGURATION                                        │
+# └─────────────────────────────────────────────────────────────────┘
+
+# Device tree overlays can be loaded here for additional hardware
+# Example: RTC module
+# dtoverlay=i2c-rtc,ds3231
+
+# Example: Additional GPIO configurations
+# dtoverlay=gpio-fan,gpiopin=18,temp=60000
+
+# For troubleshooting, enable additional debug output:
+# uart_2ndstage=1
+
+auto_initramfs=1
+
+# ===================================================================
+# End of ZaraOS Pi 5 Configuration
+# 
+# Remember to:
+# 1. Test thoroughly after changes
+# 2. Monitor temperature under load (vcgencmd measure_temp)
+# 3. Check power supply is adequate (5V 3A+ recommended)
+# 4. Backup working configurations before experimenting
+# ===================================================================

@@ -1,1 +1,45 @@
-root=/dev/mmcblk0p2 rootwait console=tty1 console=ttyAMA10,115200
+# ===================================================================
+# ZaraOS Kernel Command Line for Raspberry Pi 5
+# ===================================================================
+# This file contains kernel boot parameters passed to Linux during
+# startup. It's loaded by the GPU firmware and passed to the kernel.
+#
+# Documentation:
+# - Kernel Parameters: https://www.kernel.org/doc/html/latest/admin-guide/kernel-parameters.html
+# - Pi Boot Process: https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#boot-sequence
+# - Buildroot Cmdline: https://buildroot.org/downloads/manual/manual.html
+#
+# Key Pi 5 Changes:
+# - Primary UART is ttyAMA10 (not ttyAMA0 like Pi 4)
+# - Enhanced boot process and hardware support
+# ===================================================================
+
+# Root filesystem location and options
+root=/dev/mmcblk0p2 rootwait
+
+# Console configuration for Pi 5
+# tty1: HDMI console (monitor + keyboard)
+# ttyAMA10: Serial console on GPIO pins 8/10 (Pi 5 specific UART)
+console=tty1 console=ttyAMA10,115200
+
+# Parameter explanations:
+# - root=/dev/mmcblk0p2: Root filesystem on 2nd partition of SD card
+# - rootwait: Wait for root device to be available before mounting
+# - console=tty1: Enable console on HDMI output
+# - console=ttyAMA10,115200: Enable serial console at 115200 baud (Pi 5 UART)
+
+# Additional kernel parameters can be added here:
+# - quiet: Reduce kernel boot messages
+# - splash: Enable boot splash screen
+# - loglevel=3: Control kernel log verbosity (0-7)
+# - init=/sbin/init: Specify init program (usually automatic)
+
+# Prevent PCIE power issues
+pcie_aspm=off
+
+# DEBUG
+loglevel=7 earlyprintk=serial,ttyAMA10,115200 debug ignore_loglevel
+
+# Disable ARM security
+# FIXME: NOT safe
+arm64.nobti
