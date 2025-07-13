@@ -14,7 +14,7 @@ env:
 
 jobs:
   build:
-    runs-on: [gideon]
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
