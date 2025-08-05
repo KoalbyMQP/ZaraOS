@@ -27,16 +27,34 @@ jobs:
 
       - name: Build ZaraOS
         run: |
-          # Create the workspace directory structure expected by build script
-          sudo mkdir -p /workspace
-          sudo cp -r . /workspace/
-          mkdir -p output
-          cd /workspace
-          build-zaraos
-          # Copy results back to original location
-          if [ -d "/workspace/output" ]; then
-            cp -r /workspace/output/* $GITHUB_WORKSPACE/output/
+          echo "Building ZaraOS"
+          
+          # Set up build directories
+          BUILD_DIR="/tmp/zaraos-build"
+          DL_DIR="/tmp/zaraos-dl"
+          mkdir -p "$BUILD_DIR" "$DL_DIR" output
+          
+          # Configure buildroot
+          make -C /opt/buildroot \
+            O="$BUILD_DIR" \
+            BR2_DL_DIR="$DL_DIR" \
+            BR2_EXTERNAL="$(pwd)/ZaraOS" \
+            zaraos_pi5_defconfig
+          
+          # Build the OS
+          make -C /opt/buildroot \
+            O="$BUILD_DIR" \
+            BR2_DL_DIR="$DL_DIR" \
+            BR2_EXTERNAL="$(pwd)/ZaraOS" \
+            -j2
+          
+          # Copy artifacts
+          if [ -d "$BUILD_DIR/images" ]; then
+            echo "Copying build artifacts..."
+            cp -r "$BUILD_DIR/images"/* output/
           fi
+          
+          echo "Build complete!"
 
       - name: Verify build artifacts
         run: |
