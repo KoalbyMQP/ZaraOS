@@ -30,11 +30,27 @@ jobs:
           restore-keys: |
             buildroot-dl-
 
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/ccache
+          key: ccache-${{ github.run_number }}
+          restore-keys: |
+            ccache-
+
       - name: Setup buildroot
         run: |
           echo "Installing build dependencies"
           sudo apt-get update
-          sudo apt-get install -y ccache bc
+          sudo apt-get install -y ccache bc file cpio unzip rsync wget python3 python3-dev
+
+          echo "Setting up ccache"
+          mkdir -p /tmp/ccache
+          ccache --set-config=cache_dir=/tmp/ccache
+          ccache --set-config=max_size=2G
+          ccache --set-config=compression=true
+          ccache --zero-stats
+          ccache --show-config
 
           echo "Copying buildroot submodule to /opt/buildroot"
           sudo rm -rf /opt/buildroot
@@ -46,6 +62,7 @@ jobs:
         run: |
           rm -rf output || true
           rm -rf /tmp/zaraos-build || true
+          rm -rf /tmp/ccache || true
 
       - name: Get CPU count and optimize parallelism
         id: cpu-count
@@ -61,29 +78,35 @@ jobs:
       - name: Build ZaraOS
         env:
           FORCE_UNSAFE_CONFIGURE: 1
+          CONFIG_SHELL: /bin/bash
+          CCACHE_DIR: /tmp/ccache
+          PATH: /usr/lib/ccache:/usr/local/bin:/usr/bin:/bin
         run: |
           echo "Building ZaraOS with ${{ steps.cpu-count.outputs.jobs }} parallel jobs"
+          echo "ccache stats before build:"
+          ccache --show-stats
 
           # Set up build directories
           BUILD_DIR="/tmp/zaraos-build"
           DL_DIR="/tmp/zaraos-dl"
           mkdir -p "$BUILD_DIR" "$DL_DIR" output
 
-          # Configure buildroot
-          make -C /opt/buildroot \
+          # Configure buildroot with explicit shell and ccache
+          CONFIG_SHELL=/bin/bash make -C /opt/buildroot \
             O="$BUILD_DIR" \
             BR2_DL_DIR="$DL_DIR" \
             BR2_EXTERNAL="$(pwd)/ZaraOS" \
             zaraos_pi5_defconfig
 
-          # Build the OS with maximum parallelism
-          make -C /opt/buildroot \
+          # Build the OS with ccache enabled
+          CONFIG_SHELL=/bin/bash make -C /opt/buildroot \
             O="$BUILD_DIR" \
             BR2_DL_DIR="$DL_DIR" \
             BR2_EXTERNAL="$(pwd)/ZaraOS" \
-            -j${{ steps.cpu-count.outputs.jobs }} \
-            HOSTCC="gcc" \
-            HOSTCXX="g++"
+            -j${{ steps.cpu-count.outputs.jobs }}
+
+          echo "ccache stats after build:"
+          ccache --show-stats
 
           # Copy artifacts
           if [ -d "$BUILD_DIR/images" ]; then
