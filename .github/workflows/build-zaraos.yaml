@@ -43,6 +43,10 @@ jobs:
           
           # Test what buildroot can see
           echo "Testing buildroot list-defconfigs:"
+          echo "Contents of /opt/buildroot:"
+          ls -la /opt/buildroot/
+          echo "Checking if Makefile exists:"
+          ls -la /opt/buildroot/Makefile || echo "No Makefile found"
           make -C /opt/buildroot BR2_EXTERNAL="$(pwd)/ZaraOS" list-defconfigs | grep zaraos || echo "zaraos defconfig not found in list"
           
           # Set up build directories
