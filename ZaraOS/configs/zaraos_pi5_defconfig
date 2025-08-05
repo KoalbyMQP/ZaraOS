@@ -120,8 +120,10 @@ BR2_PACKAGE_PYTHON3=y
 BR2_PACKAGE_PYTHON3_PY_PYC_ONLY=y     # No .py source files
 BR2_PACKAGE_PYTHON3_PYC_ONLY=y        # Bytecode only
 
-# Essential C library support - needed by Python and other packages
-BR2_PACKAGE_LIBFFI=y
+# Essential C library support - temporarily disabled due to cross-compilation issues
+# with 16K page size. Python will build with reduced functionality but should work
+# for basic testing. Re-enable once toolchain issues are resolved.
+# BR2_PACKAGE_LIBFFI=y
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ RASPBERRY PI FIRMWARE                                           │
