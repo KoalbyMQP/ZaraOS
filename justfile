@@ -16,7 +16,7 @@ build:
     #!/usr/bin/env bash
     # TODO: convert this to run the github action we want to avoid local builds
     echo -e "{{RED}}This is a placeholder for the build step. Please use 'just test-container' to build and test locally.{{NC}}"
-    just test-container 
+    just test-container
 
 # Build container image locally
 build-container:

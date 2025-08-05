@@ -48,7 +48,7 @@ jobs:
         id: should-build
         run: |
           SHOULD_BUILD="false"
-          
+
           # Always build on manual dispatch with force option
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.force_build }}" == "true" ]]; then
             SHOULD_BUILD="true"
@@ -60,7 +60,7 @@ jobs:
           else
             echo "Build reason: Hash unchanged, skipping build"
           fi
-          
+
           echo "should_build=$SHOULD_BUILD" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
@@ -101,7 +101,7 @@ jobs:
         if: steps.should-build.outputs.should_build == 'true'
         run: |
           echo "${{ steps.hash.outputs.current_hash }}" > .container-hash
-          
+
       - name: Cache hash for future runs
         if: steps.should-build.outputs.should_build == 'true'
         uses: actions/cache/save@v4

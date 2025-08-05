@@ -11,7 +11,7 @@
 #
 # Target: Raspberry Pi 5 B (4GB/8GB models)
 # Architecture: AArch64 (64-bit ARM)
-# Kernel: 6.12 (Raspberry Pi kernel fork) 
+# Kernel: 6.12 (Raspberry Pi kernel fork)
 # ===================================================================
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -85,8 +85,8 @@ BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragm
 # Kernel requires OpenSSL for module signing
 BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
 
-# FORCE 16k PAGE SIZE FOR PI 5 OPTIM THIS HAS TO ALSO BE CHANGES IN THE KERNAL PATCH! 
-BR2_ARM64_PAGE_SIZE_16K=y  
+# FORCE 16k PAGE SIZE FOR PI 5 OPTIM THIS HAS TO ALSO BE CHANGES IN THE KERNAL PATCH!
+BR2_ARM64_PAGE_SIZE_16K=y
 BR2_ARM64_PAGE_SIZE="16K"
 
 # ┌─────────────────────────────────────────────────────────────────┐

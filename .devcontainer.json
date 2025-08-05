@@ -19,7 +19,7 @@
       },
       "extensions": [
         "ms-vscode.makefile-tools",
-        "redhat.vscode-yaml", 
+        "redhat.vscode-yaml",
         "timonwong.shellcheck",
         "ms-vscode.hexdump",
         "ms-azuretools.vscode-docker",

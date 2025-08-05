@@ -14,7 +14,7 @@
 #
 # Benefits of 4K pages:
 # - Better memory efficiency for small allocations
-# - Reduced memory fragmentation  
+# - Reduced memory fragmentation
 # - Improved cache locality
 # - Standard page size for most ARM64 systems
 # - Compatible with more userspace applications
