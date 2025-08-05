@@ -1,6 +1,6 @@
 #!/bin/bash
 # ===================================================================
-# ZaraOS Post-Image Script - FIXED VERSION
+# ZaraOS Post-Image Script
 # ===================================================================
 # This script runs after all filesystem images are created and
 # generates the final SD card image using genimage. It handles
@@ -28,8 +28,9 @@ echo "════════════════════════�
 echo "ZaraOS Post-Image: Generating SD Card Image"
 echo "═══════════════════════════════════════════════════════════════"
 
-# Use hardcoded paths for ZaraOS
-BOARD_DIR="/workspace/ZaraOS"
+# Use BR2_EXTERNAL path instead of hardcoded workspace path
+# BR2_EXTERNAL_ZaraOS_PATH is set by buildroot automatically
+BOARD_DIR="${BR2_EXTERNAL_ZaraOS_PATH:-$(dirname "$(dirname "$0")")}"
 GENIMAGE_CFG="${BINARIES_DIR}/genimage.cfg"
 GENIMAGE_TMP="${BUILD_DIR}/genimage.tmp"
 
