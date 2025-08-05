@@ -27,8 +27,16 @@ jobs:
 
       - name: Build ZaraOS
         run: |
+          # Create the workspace directory structure expected by build script
+          sudo mkdir -p /workspace
+          sudo cp -r . /workspace/
           mkdir -p output
+          cd /workspace
           build-zaraos
+          # Copy results back to original location
+          if [ -d "/workspace/output" ]; then
+            cp -r /workspace/output/* $GITHUB_WORKSPACE/output/
+          fi
 
       - name: Verify build artifacts
         run: |
