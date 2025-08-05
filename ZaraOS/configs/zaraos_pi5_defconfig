@@ -94,9 +94,9 @@ BR2_LINUX_KERNEL_CUSTOM_TARBALL_LOCATION="$(call github,raspberrypi,linux,8f77e0
 BR2_LINUX_KERNEL_DEFCONFIG="bcm2712"
 #BR2_LINUX_KERNEL_DEFCONFIG="defconfig"
 
-# Apply custom kernel configuration fragment - temporarily disabled for troubleshooting
+# Apply custom kernel configuration fragment - re-enabled for Pi 5 optimization
 # This enables 16K page size as standard for Pi 5
-# BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragments/linux-pi5.fragment"
+BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragments/linux-pi5.fragment"
 
 # Kernel requires OpenSSL for module signing
 BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
@@ -139,8 +139,8 @@ BR2_PACKAGE_RPI_FIRMWARE_CMDLINE_FILE="$(BR2_EXTERNAL_ZaraOS_PATH)/cmdlines/cmdl
 
 # Always needed for hardware support - REQUIRED FOR BOOTING!
 BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB=y
-# Disable overlays to save boot partition space - overlays are for add-on hardware
-# BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB_OVERLAYS=y
+# Re-enable overlays - needed for Pi 5 hardware support and booting
+BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB_OVERLAYS=y
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ KERNEL MODULE SUPPORT                                           │
 # └─────────────────────────────────────────────────────────────────┘
