@@ -34,4 +34,3 @@ dtoverlay=dwc2,dr_mode=host
 
 # enable 64bits support
 arm_64bit=1
-

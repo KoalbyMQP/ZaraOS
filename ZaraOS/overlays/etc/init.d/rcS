@@ -39,7 +39,7 @@ if [ -x /sbin/klogd ]; then
     echo "Started klogd"
 fi
 
-# Start system log daemon  
+# Start system log daemon
 if [ -x /sbin/syslogd ]; then
     /sbin/syslogd
     echo "Started syslogd"
@@ -73,7 +73,7 @@ if [ -d /etc/init.d ]; then
         [ -x "$script" ] || continue
         case "$script" in
             */rcS) continue ;;  # Skip ourselves
-            *) 
+            *)
                 echo "Running: $(basename $script)"
                 "$script" start
                 ;;

@@ -22,7 +22,7 @@ After successful build, you'll find these files in `output/images/`:
 ```
 output/images/
 ├── bcm27*.dtb              # Device tree files for your Pi model
-├── boot.vfat               # Boot partition image  
+├── boot.vfat               # Boot partition image
 ├── rootfs.ext4             # Root filesystem image
 ├── rpi-firmware/           # Raspberry Pi firmware files
 │   ├── config.txt         # Boot configuration

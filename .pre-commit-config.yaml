@@ -1,0 +1,31 @@
+# Simple pre-commit configuration for ZaraOS
+repos:
+  # Basic file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+        args: [--maxkb=5120]  # 5MB limit
+      - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # Shell script linting
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        files: \.(sh|bash)$
+
+# Exclude build artifacts and external dependencies
+exclude: |
+  (?x)^(
+    output/.*|
+    tmp/.*|
+    buildroot/.*|
+    rpi-firmware/.*|
+    .*\.(dtb|dtbo|vfat|ext[24]|img)$
+  )$
