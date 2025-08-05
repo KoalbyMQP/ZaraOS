@@ -69,7 +69,7 @@ done
 
 # Handle overlays directory specially - we need to preserve directory structure
 if [ -d "${BINARIES_DIR}/rpi-firmware/overlays" ]; then
-    echo "   Overlays directory: overlays/ ($(ls "${BINARIES_DIR}/rpi-firmware/overlays" | wc -l) files)"
+    echo "   Overlays directory: overlays/ ($(find "${BINARIES_DIR}/rpi-firmware/overlays" -type f | wc -l) files)"
 fi
 
 # Determine kernel image name from config.txt
@@ -156,7 +156,7 @@ fi
 # Display boot partition contents summary
 echo ""
 echo "Boot partition will contain:"
-cat "${GENIMAGE_CFG}" | grep -A 10 "files = {" | grep '"' | sed 's/.*"\(.*\)".*/   • \1/'
+grep -A 10 "files = {" "${GENIMAGE_CFG}" | grep '"' | sed 's/.*"\(.*\)".*/   • \1/'
 
 # Show overlays directory information
 if [ -d "${BINARIES_DIR}/overlays" ]; then
@@ -200,12 +200,12 @@ GENIMAGE_EXIT_CODE=$?
 echo ""
 if [ ${GENIMAGE_EXIT_CODE} -eq 0 ]; then
     echo "SD card image generation completed successfully"
-    
+
     # Display final image information
     if [ -f "${BINARIES_DIR}/sdcard.img" ]; then
         IMAGE_SIZE=$(du -h "${BINARIES_DIR}/sdcard.img" | cut -f1)
         IMAGE_SIZE_BYTES=$(stat -c%s "${BINARIES_DIR}/sdcard.img" 2>/dev/null || echo "unknown")
-        
+
         echo ""
         echo "Final Image Information:"
         echo "   Location: ${BINARIES_DIR}/sdcard.img"

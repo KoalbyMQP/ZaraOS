@@ -45,11 +45,11 @@ disable_overscan=1
 # but still good to optimize for headless/minimal GUI usage
 
 # GPU memory allocation (in MB) by total system memory:
-# - For headless operation: 64MB is sufficient  
+# - For headless operation: 64MB is sufficient
 # - For basic desktop: 128MB recommended
 # - For graphics-intensive: 256MB+
 #gpu_mem_256=128  # DEBUG: Increased from 64MB for better video support
-#gpu_mem_512=256  # DEBUG: Increased from 64MB for better video support  
+#gpu_mem_512=256  # DEBUG: Increased from 64MB for better video support
 #gpu_mem_1024=512 # DEBUG: Increased from 64MB for better video support
 
 # Note: Pi 5 uses dynamic memory management, these are fallback values
@@ -90,7 +90,7 @@ boot_delay=5
 # I2C interface (for sensors, displays, etc.)
 # dtparam=i2c_arm=on
 
-# SPI interface (for additional sensors, displays)  
+# SPI interface (for additional sensors, displays)
 # dtparam=spi=on
 
 # I2S audio interface (for audio applications)
@@ -118,7 +118,7 @@ boot_delay=5
 # gpu_freq=800
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ POWER MANAGEMENT                                                │ 
+# │ POWER MANAGEMENT                                                │
 # └─────────────────────────────────────────────────────────────────┘
 
 # Pi 5 has improved power management - these options tune behavior:
@@ -127,7 +127,7 @@ boot_delay=5
 # Power LED behavior (0=off, 1=on, heartbeat, etc.)
 pwr_led_trigger=heartbeat
 
-# Activity LED behavior  
+# Activity LED behavior
 act_led_trigger=default
 
 # USB power output (Pi 5 can provide more power to USB devices)
@@ -162,7 +162,7 @@ auto_initramfs=1
 
 # ===================================================================
 # End of ZaraOS Pi 5 Configuration
-# 
+#
 # Remember to:
 # 1. Test thoroughly after changes
 # 2. Monitor temperature under load (vcgencmd measure_temp)

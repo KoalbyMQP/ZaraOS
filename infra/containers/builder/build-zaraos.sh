@@ -37,4 +37,3 @@ fi
 
 echo "Build complete!"
 echo "Final images available in: $WORKSPACE_PATH/output/"
-
