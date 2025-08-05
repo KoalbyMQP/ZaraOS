@@ -1,0 +1,56 @@
+name: Build ZaraOS
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+    inputs:
+      clean_build:
+        description: 'Force clean build (ignore cache)'
+        type: boolean
+        default: false
+
+jobs:
+  build-os:
+    runs-on: [gideon, zaraos, builder]
+    timeout-minutes: 180
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Clean workspace
+        if: github.event.inputs.clean_build == 'true'
+        run: rm -rf output || true
+
+      - name: Build ZaraOS
+        run: |
+          mkdir -p output
+          build-zaraos
+
+      - name: Verify build artifacts
+        run: |
+          if [[ ! -f "output/sdcard.img" ]]; then
+            echo "ERROR: Missing sdcard.img"
+            exit 1
+          fi
+          echo "Build completed successfully"
+          ls -la output/
+
+      - name: Upload ZaraOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: zaraos-build-${{ github.run_number }}
+          path: |
+            output/sdcard.img
+            output/Image
+            output/rootfs.ext4
+            output/*.dtb
+            output/boot.vfat
+          retention-days: 30
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf tmp/ || true
