@@ -20,6 +20,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup buildroot
+        run: |
+          echo "Copying buildroot submodule to /opt/buildroot"
+          sudo rm -rf /opt/buildroot
+          sudo cp -r ZaraOS/buildroot /opt/buildroot
+          ls -la /opt/buildroot/
 
       - name: Clean workspace
         if: github.event.inputs.clean_build == 'true'
