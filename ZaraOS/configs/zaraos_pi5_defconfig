@@ -115,13 +115,14 @@ BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y
 # XZ compression utilities (useful for package management)
 BR2_PACKAGE_XZ=y
 
-# Python 3 with bytecode-only installation
-BR2_PACKAGE_PYTHON3=y
-BR2_PACKAGE_PYTHON3_PY_PYC_ONLY=y     # No .py source files
-BR2_PACKAGE_PYTHON3_PYC_ONLY=y        # Bytecode only
+# Python 3 - TEMPORARILY DISABLED due to cross-compilation issues
+# Will re-enable once base system builds successfully
+# BR2_PACKAGE_PYTHON3=y
+# BR2_PACKAGE_PYTHON3_PY_PYC_ONLY=y     # No .py source files
+# BR2_PACKAGE_PYTHON3_PYC_ONLY=y        # Bytecode only
 
-# Essential C library support
-BR2_PACKAGE_LIBFFI=y
+# Essential C library support - only if needed by other packages
+# BR2_PACKAGE_LIBFFI=y
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ RASPBERRY PI FIRMWARE                                           │
