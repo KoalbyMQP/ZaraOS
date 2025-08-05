@@ -71,7 +71,7 @@ jobs:
           # Use 75% of available CPUs, minimum 2, maximum 8
           JOBS=$(echo "$CPU_COUNT * 0.75" | bc | cut -d. -f1)
           JOBS=$(( JOBS < 2 ? 2 : JOBS ))
-          JOBS=$(( JOBS > 8 ? 8 : JOBS ))
+          JOBS=$(( JOBS > 24 ? 24 : JOBS ))
           echo "jobs=$JOBS" >> $GITHUB_OUTPUT
           echo "Using $JOBS parallel jobs (CPU count: $CPU_COUNT)"
 
