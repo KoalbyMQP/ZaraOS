@@ -1,0 +1,93 @@
+name: Build ZaraOS
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+    inputs:
+      clean_build:
+        description: 'Force clean build (ignore cache)'
+        type: boolean
+        default: false
+
+jobs:
+  build-os:
+    runs-on: [gideon, zaraos, builder]
+    timeout-minutes: 180
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup buildroot
+        run: |
+          echo "Copying buildroot submodule to /opt/buildroot"
+          sudo rm -rf /opt/buildroot
+          sudo cp -r ZaraOS/buildroot /opt/buildroot
+          ls -la /opt/buildroot/
+
+      - name: Clean workspace
+        if: github.event.inputs.clean_build == 'true'
+        run: rm -rf output || true
+
+      - name: Build ZaraOS
+        env:
+          FORCE_UNSAFE_CONFIGURE: 1
+        run: |
+          echo "Building ZaraOS"
+          
+          # Set up build directories
+          BUILD_DIR="/tmp/zaraos-build"
+          DL_DIR="/tmp/zaraos-dl"
+          mkdir -p "$BUILD_DIR" "$DL_DIR" output
+          
+          # Configure buildroot
+          make -C /opt/buildroot \
+            O="$BUILD_DIR" \
+            BR2_DL_DIR="$DL_DIR" \
+            BR2_EXTERNAL="$(pwd)/ZaraOS" \
+            zaraos_pi5_defconfig
+          
+          # Build the OS
+          make -C /opt/buildroot \
+            O="$BUILD_DIR" \
+            BR2_DL_DIR="$DL_DIR" \
+            BR2_EXTERNAL="$(pwd)/ZaraOS" \
+            -j2
+          
+          # Copy artifacts
+          if [ -d "$BUILD_DIR/images" ]; then
+            echo "Copying build artifacts..."
+            cp -r "$BUILD_DIR/images"/* output/
+          fi
+          
+          echo "Build complete!"
+
+      - name: Verify build artifacts
+        run: |
+          if [[ ! -f "output/sdcard.img" ]]; then
+            echo "ERROR: Missing sdcard.img"
+            exit 1
+          fi
+          echo "Build completed successfully"
+          ls -la output/
+
+      - name: Upload ZaraOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: zaraos-build-${{ github.run_number }}
+          path: |
+            output/sdcard.img
+            output/Image
+            output/rootfs.ext4
+            output/*.dtb
+            output/boot.vfat
+          retention-days: 30
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf tmp/ || true

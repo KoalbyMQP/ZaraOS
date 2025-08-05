@@ -1,0 +1,11 @@
+______                  _____ _____ 
+|___  /                 |  _  /  ___|
+   / / __ _ _ __ __ _    | | | \ `--. 
+  / / / _` | '__/ _` |   | | | |`--. \
+ / /_| (_| | | | (_| |   \ \_/ /\__/ /
+/_____\__,_|_|  \__,_|    \___/\____/ 
+
+Raspberry Pi OS for Humanoid Robots MQP
+
+Serial Console: Available on GPIO UART (115200 baud)
+HDMI Console:   Connect monitor and keyboard

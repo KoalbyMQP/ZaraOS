@@ -1,0 +1,25 @@
+# ===================================================================
+# ZaraOS Network Interfaces Configuration
+# ===================================================================
+# Network interfaces configuration for ZaraOS targeting robotics
+# applications with automatic DHCP configuration.
+# ===================================================================
+
+# Loopback interface
+auto lo
+iface lo inet loopback
+
+# Ethernet interface with DHCP (primary network)
+# This is configured in the defconfig but we specify it here too
+# auto eth0
+# iface eth0 inet dhcp
+
+# Wireless interface (if available and configured)
+# Uncomment and configure if using WiFi
+# auto wlan0
+# iface wlan0 inet dhcp
+#     wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
+
+# USB networking (for development/debugging)
+# auto usb0
+# iface usb0 inet dhcp
