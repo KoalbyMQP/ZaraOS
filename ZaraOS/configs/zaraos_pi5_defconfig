@@ -94,14 +94,15 @@ BR2_LINUX_KERNEL_CUSTOM_TARBALL_LOCATION="$(call github,raspberrypi,linux,8f77e0
 BR2_LINUX_KERNEL_DEFCONFIG="bcm2712"
 #BR2_LINUX_KERNEL_DEFCONFIG="defconfig"
 
-# Apply custom kernel configuration fragment
+# Apply custom kernel configuration fragment - temporarily disabled for troubleshooting
 # This enables 16K page size as standard for Pi 5
-BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragments/linux-pi5.fragment"
+# BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragments/linux-pi5.fragment"
 
 # Kernel requires OpenSSL for module signing
 BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
 
-# FORCE 16k PAGE SIZE FOR PI 5 OPTIM THIS HAS TO ALSO BE CHANGES IN THE KERNAL PATCH!
+# FORCE 16k PAGE SIZE FOR PI 5 OPTIMIZATION - REQUIRED FOR PERFORMANCE!
+# This HAS TO ALSO BE CHANGED IN THE KERNEL PATCH!
 BR2_ARM64_PAGE_SIZE_16K=y
 BR2_ARM64_PAGE_SIZE="16K"
 
