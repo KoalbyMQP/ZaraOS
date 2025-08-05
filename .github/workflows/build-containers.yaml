@@ -19,7 +19,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: [gideon, basic]
     permissions:
       contents: read
       packages: write
@@ -82,20 +82,16 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # Always tag as latest
             type=raw,value=latest
-            # Add hash tag for tracking
-            type=raw,value=hash-${{ steps.hash.outputs.current_hash }}
 
       - name: Build container image
         if: steps.should-build.outputs.should_build == 'true'
         uses: docker/build-push-action@v5
         with:
-          context: infra/containers/builder
+          context: .
           file: infra/containers/builder/Dockerfile
           push: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -112,21 +108,3 @@ jobs:
         with:
           path: .container-hash
           key: container-hash-${{ steps.hash.outputs.current_hash }}
-
-      - name: Build summary
-        run: |
-          echo "## Container Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Hash**: \`${{ steps.hash.outputs.current_hash }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Build needed**: ${{ steps.should-build.outputs.should_build }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          
-          if [[ "${{ steps.should-build.outputs.should_build }}" == "true" ]]; then
-            if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-              echo "- **Action**: Built and pushed to registry" >> $GITHUB_STEP_SUMMARY
-              echo "- **Registry**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "- **Action**: Built for testing only (develop branch)" >> $GITHUB_STEP_SUMMARY
-            fi
-          else
-            echo "- **Action**: Skipped (no changes detected)" >> $GITHUB_STEP_SUMMARY
-          fi

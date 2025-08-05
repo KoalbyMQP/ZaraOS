@@ -1,0 +1,25 @@
+# ===================================================================
+# ZaraOS inittab - Auto-login Configuration
+# ===================================================================
+# This file configures the init system for ZaraOS with auto-login
+# on both serial console and HDMI console for development ease.
+#
+# Format: id:runlevels:action:process
+# ===================================================================
+
+# System initialization
+::sysinit:/etc/init.d/rcS
+
+# Put a getty on the serial port (Pi 5 uses ttyAMA10)
+# ttyAMA10::respawn:/sbin/getty -n -L -l /usr/bin/autologin.sh ttyAMA10 115200 vt100
+
+# HDMI console with auto-login
+tty1::respawn:/sbin/getty -n -L -l /usr/bin/autologin.sh tty1 0 vt100
+
+# Stuff to do for the 3-finger salute
+::ctrlaltdel:/sbin/reboot
+
+# Stuff to do before rebooting
+::shutdown:/etc/init.d/rcK
+::shutdown:/sbin/swapoff -a
+::shutdown:/bin/umount -a -r

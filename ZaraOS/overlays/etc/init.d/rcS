@@ -1,0 +1,85 @@
+#!/bin/sh
+# ===================================================================
+# ZaraOS System Initialization Script (rcS)
+# ===================================================================
+# This script runs at boot time to initialize the system before
+# user login. It handles basic system setup and service startup.
+#
+# Called by: BusyBox init via /etc/inittab ::sysinit: action
+# Purpose: System initialization and service startup
+# ===================================================================
+
+echo "Starting ZaraOS system initialization..."
+
+# Mount essential filesystems
+echo "Mounting filesystems..."
+/bin/mount -t proc proc /proc
+/bin/mount -t sysfs sysfs /sys
+/bin/mount -t devtmpfs devtmpfs /dev
+
+# Create additional device nodes if needed
+[ -d /dev/pts ] || mkdir /dev/pts
+/bin/mount -t devpts devpts /dev/pts
+
+# Set up /tmp as tmpfs
+/bin/mount -t tmpfs tmpfs /tmp
+
+# Set hostname from /etc/hostname
+if [ -f /etc/hostname ]; then
+    /bin/hostname -F /etc/hostname
+    echo "Hostname set to: $(cat /etc/hostname)"
+fi
+
+# Start essential services
+echo "Starting system services..."
+
+# Start kernel log daemon
+if [ -x /sbin/klogd ]; then
+    /sbin/klogd
+    echo "Started klogd"
+fi
+
+# Start system log daemon  
+if [ -x /sbin/syslogd ]; then
+    /sbin/syslogd
+    echo "Started syslogd"
+fi
+
+# Load kernel modules if any
+if [ -d /etc/modules-load.d ]; then
+    for conf in /etc/modules-load.d/*.conf; do
+        [ -f "$conf" ] || continue
+        while read module; do
+            case "$module" in
+                ""|\#*) continue ;;
+            esac
+            modprobe $module
+        done < "$conf"
+    done
+fi
+
+# Set up network interfaces
+echo "Configuring network..."
+if [ -x /sbin/ifup ]; then
+    /sbin/ifup -a
+else
+    # Fallback: bring up loopback at minimum
+    /sbin/ifconfig lo up
+fi
+
+# Run any additional initialization scripts
+if [ -d /etc/init.d ]; then
+    for script in /etc/init.d/S*; do
+        [ -x "$script" ] || continue
+        case "$script" in
+            */rcS) continue ;;  # Skip ourselves
+            *) 
+                echo "Running: $(basename $script)"
+                "$script" start
+                ;;
+        esac
+    done
+fi
+
+echo "ZaraOS system initialization complete"
+echo ""
