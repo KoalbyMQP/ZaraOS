@@ -52,6 +52,13 @@ BR2_DOWNLOAD_FORCE_CHECK_HASHES=y
 # Init system - use BusyBox init (lightweight and sufficient)
 BR2_INIT_BUSYBOX=y
 
+# Target skeleton filesystem (provides basic directory structure)
+BR2_ROOTFS_SKELETON_DEFAULT=y
+
+# System configuration
+BR2_TARGET_GENERIC_HOSTNAME="zaraos"
+BR2_TARGET_GENERIC_ISSUE="Welcome to ZaraOS"
+
 # BusyBox configuration
 BR2_PACKAGE_BUSYBOX=y
 BR2_PACKAGE_BUSYBOX_CONFIG="$(BR2_EXTERNAL_ZaraOS_PATH)/configs/busybox-minimal.config"
@@ -102,12 +109,12 @@ BR2_ARM64_PAGE_SIZE="16K"
 
 # Allow showing packages provided by BusyBox (for debugging)
 BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y
-BR2_PACKAGE_BUSYBOX_CONFIG="$(BR2_EXTERNAL_ZaraOS_PATH)/configs/busybox-minimal.config"
 
 # XZ compression utilities (useful for package management)
 BR2_PACKAGE_XZ=y
 
-# Install python
+# Python 3 with bytecode-only installation
+BR2_PACKAGE_PYTHON3=y
 BR2_PACKAGE_PYTHON3_PY_PYC_ONLY=y     # No .py source files
 BR2_PACKAGE_PYTHON3_PYC_ONLY=y        # Bytecode only
 
