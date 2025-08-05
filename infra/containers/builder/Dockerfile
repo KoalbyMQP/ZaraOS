@@ -16,7 +16,7 @@ RUN useradd -m -s /bin/bash builder
 USER builder
 WORKDIR /workspace
 
-COPY build-zaraos.sh /usr/local/bin/
+COPY infra/containers/builder/build-zaraos.sh /usr/local/bin/
 USER root
 RUN chmod +x /usr/local/bin/build-zaraos.sh
 USER builder
