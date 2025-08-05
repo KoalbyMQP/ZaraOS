@@ -103,7 +103,8 @@ jobs:
             O="$BUILD_DIR" \
             BR2_DL_DIR="$DL_DIR" \
             BR2_EXTERNAL="$(pwd)/ZaraOS" \
-            -j${{ steps.cpu-count.outputs.jobs }}
+            -j${{ steps.cpu-count.outputs.jobs }} \
+            V=1
 
           echo "ccache stats after build:"
           ccache --show-stats

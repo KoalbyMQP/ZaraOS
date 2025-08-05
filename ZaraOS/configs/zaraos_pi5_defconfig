@@ -49,6 +49,13 @@ BR2_DOWNLOAD_FORCE_CHECK_HASHES=y
 # │ SYSTEM CONFIGURATION                                            │
 # └─────────────────────────────────────────────────────────────────┘
 
+# Init system - use BusyBox init (lightweight and sufficient)
+BR2_INIT_BUSYBOX=y
+
+# BusyBox configuration
+BR2_PACKAGE_BUSYBOX=y
+BR2_PACKAGE_BUSYBOX_CONFIG="$(BR2_EXTERNAL_ZaraOS_PATH)/configs/busybox-minimal.config"
+
 # Enable DHCP on eth0 for automatic network configuration
 BR2_SYSTEM_DHCP="eth0"
 
