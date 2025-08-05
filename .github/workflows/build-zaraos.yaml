@@ -29,6 +29,22 @@ jobs:
         run: |
           echo "Building ZaraOS"
           
+          # Debug: Show current working directory and paths
+          echo "Current working directory: $(pwd)"
+          echo "Contents of current directory:"
+          ls -la
+          echo "External tree path will be: $(pwd)/ZaraOS"
+          echo "Contents of external tree:"
+          ls -la $(pwd)/ZaraOS/
+          echo "Contents of configs directory:"
+          ls -la $(pwd)/ZaraOS/configs/
+          echo "external.desc file:"
+          cat $(pwd)/ZaraOS/external.desc
+          
+          # Test what buildroot can see
+          echo "Testing buildroot list-defconfigs:"
+          make -C /opt/buildroot BR2_EXTERNAL="$(pwd)/ZaraOS" list-defconfigs | grep zaraos || echo "zaraos defconfig not found in list"
+          
           # Set up build directories
           BUILD_DIR="/tmp/zaraos-build"
           DL_DIR="/tmp/zaraos-dl"
