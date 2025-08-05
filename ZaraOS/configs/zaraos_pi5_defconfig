@@ -137,9 +137,10 @@ BR2_PACKAGE_RPI_FIRMWARE_CONFIG_FILE="$(BR2_EXTERNAL_ZaraOS_PATH)/boot-configs/c
 # Use ZaraOS Pi 5 specific kernel command line
 BR2_PACKAGE_RPI_FIRMWARE_CMDLINE_FILE="$(BR2_EXTERNAL_ZaraOS_PATH)/cmdlines/cmdline_5.txt"
 
-# Always needed for hardware support
+# Always needed for hardware support - REQUIRED FOR BOOTING!
 BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB=y
-BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB_OVERLAYS=y
+# Disable overlays to save boot partition space - overlays are for add-on hardware
+# BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB_OVERLAYS=y
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ KERNEL MODULE SUPPORT                                           │
 # └─────────────────────────────────────────────────────────────────┘
