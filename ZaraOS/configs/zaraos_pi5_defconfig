@@ -52,7 +52,10 @@ BR2_DOWNLOAD_FORCE_CHECK_HASHES=y
 # Enable DHCP on eth0 for automatic network configuration
 BR2_SYSTEM_DHCP="eth0"
 
-# Post-build script - sets up console and system tweaks
+# ZaraOS filesystem overlay - applies custom files to rootfs
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ZaraOS_PATH)/overlays"
+
+# Post-build script - for cleanup tasks only
 BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_ZaraOS_PATH)/scripts/post-build.sh"
 
 # Post-image script - generates final SD card image
@@ -135,7 +138,7 @@ BR2_TARGET_ROOTFS_EXT2_4=y
 
 # Root filesystem size - 120MB should be sufficient for base system
 # Increase if adding many packages or large datasets
-BR2_TARGET_ROOTFS_EXT2_SIZE="120M"
+BR2_TARGET_ROOTFS_EXT2_SIZE="256M"
 
 # Don't generate tar archive (not needed for Pi deployment)
 # BR2_TARGET_ROOTFS_TAR is not set
