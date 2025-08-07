@@ -115,12 +115,38 @@ BR2_ARM64_PAGE_SIZE="16K"
 # XZ compression utilities (useful for package management)
 BR2_PACKAGE_XZ=y
 
-# Python 3 - Re-enabled for testing and ML workloads
-#BR2_PACKAGE_PYTHON3=y
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ PYTHON 3 CONFIGURATION                                         │
+# └─────────────────────────────────────────────────────────────────┘
 
-# Essential C library support - re-enabling for Python support
-# Using default libffi configuration (no custom options)
+# Enable Python 3 interpreter
+BR2_PACKAGE_PYTHON3=y
+
+# Essential Python3 modules (required for basic functionality)
+BR2_PACKAGE_PYTHON3_UNICODEDATA=y
+BR2_PACKAGE_PYTHON3_BZIP2=y
+BR2_PACKAGE_PYTHON3_SSL=y
+BR2_PACKAGE_PYTHON3_READLINE=y
+BR2_PACKAGE_PYTHON3_CURSES=y
+
+# Python module format - use compiled bytecode only to save space
+BR2_PACKAGE_PYTHON3_PYC_ONLY=y
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ PYTHON 3 DEPENDENCIES                                          │
+# └─────────────────────────────────────────────────────────────────┘
+
+# Core dependencies (you already have libffi)
 BR2_PACKAGE_LIBFFI=y
+BR2_PACKAGE_ZLIB=y
+BR2_PACKAGE_OPENSSL=y
+BR2_PACKAGE_OPENSSL_FORCE_LIBOPENSSL=y
+BR2_PACKAGE_NCURSES=y
+BR2_PACKAGE_READLINE=y
+BR2_PACKAGE_BZIP2=y
+
+# Host tools required for Python3 cross-compilation
+BR2_PACKAGE_HOST_PYTHON3=y
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ RASPBERRY PI FIRMWARE                                           │
@@ -183,3 +209,13 @@ BR2_PACKAGE_HOST_PKGCONF=y
 BR2_PACKAGE_HOST_AUTOCONF=y
 BR2_PACKAGE_HOST_AUTOMAKE=y
 BR2_PACKAGE_HOST_LIBTOOL=y
+
+# Build system requirements for Python3
+BR2_PACKAGE_HOST_PKGCONF=y
+BR2_PACKAGE_HOST_AUTOCONF=y
+BR2_PACKAGE_HOST_AUTOMAKE=y
+BR2_PACKAGE_HOST_LIBTOOL=y
+
+# Ensure proper toolchain configuration
+BR2_TOOLCHAIN_BUILDROOT_CXX=y
+BR2_TOOLCHAIN_BUILDROOT_FORTRAN=y
