@@ -94,9 +94,8 @@ BR2_LINUX_KERNEL_CUSTOM_TARBALL_LOCATION="$(call github,raspberrypi,linux,8f77e0
 BR2_LINUX_KERNEL_DEFCONFIG="bcm2712"
 #BR2_LINUX_KERNEL_DEFCONFIG="defconfig"
 
-# Apply custom kernel configuration fragment - temporarily disabled to avoid toolchain conflicts
-# This enables 16K page size as standard for Pi 5 - will re-enable after toolchain stabilizes
-# BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragments/linux-pi5.fragment"
+# This enables 16K page size as standard for Pi 5
+BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragments/linux-pi5.fragment"
 
 # Kernel requires OpenSSL for module signing
 BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
@@ -111,14 +110,13 @@ BR2_ARM64_PAGE_SIZE="16K"
 # └─────────────────────────────────────────────────────────────────┘
 
 # Allow showing packages provided by BusyBox (for debugging)
-BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y
+# BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y
 
 # XZ compression utilities (useful for package management)
 BR2_PACKAGE_XZ=y
 
 # Python 3 - Re-enabled for testing and ML workloads
-# Using conservative settings to avoid cross-compilation issues
-BR2_PACKAGE_PYTHON3=y
+#BR2_PACKAGE_PYTHON3=y
 
 # Essential C library support - re-enabling for Python support
 # Using default libffi configuration (no custom options)
