@@ -30,50 +30,50 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      builder-changed: ${{ steps.builder-changes.outputs.changed }}
-      dev-changed: ${{ steps.dev-changes.outputs.changed }}
-      builder-hash: ${{ steps.builder-hash.outputs.hash }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
+  # detect-changes:
+  #   runs-on: ubuntu-latest
+  #   outputs:
+  #     builder-changed: ${{ steps.builder-changes.outputs.changed }}
+  #     dev-changed: ${{ steps.dev-changes.outputs.changed }}
+  #     builder-hash: ${{ steps.builder-hash.outputs.hash }}
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 2
 
-      - name: Check builder changes
-        id: builder-changes
-        run: |
-          if git diff --name-only HEAD~1 HEAD | grep -q "^infra/containers/builder/"; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-          fi
+  #     - name: Check builder changes
+  #       id: builder-changes
+  #       run: |
+  #         if git diff --name-only HEAD~1 HEAD | grep -q "^infra/containers/builder/"; then
+  #           echo "changed=true" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "changed=false" >> $GITHUB_OUTPUT
+  #         fi
 
-      - name: Check dev changes
-        id: dev-changes
-        run: |
-          if git diff --name-only HEAD~1 HEAD | grep -q "^infra/containers/dev/"; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-          fi
+  #     - name: Check dev changes
+  #       id: dev-changes
+  #       run: |
+  #         if git diff --name-only HEAD~1 HEAD | grep -q "^infra/containers/dev/"; then
+  #           echo "changed=true" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "changed=false" >> $GITHUB_OUTPUT
+  #         fi
 
-      - name: Calculate builder hash
-        id: builder-hash
-        if: steps.builder-changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
-        run: |
-          if [[ -f "infra/containers/builder/Dockerfile" && -f "infra/containers/builder/build-zaraos.sh" ]]; then
-            HASH=$(cat infra/containers/builder/Dockerfile infra/containers/builder/build-zaraos.sh | sha256sum | cut -d' ' -f1)
-          else
-            HASH="no-files"
-          fi
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "Builder hash: $HASH"
+  #     - name: Calculate builder hash
+  #       id: builder-hash
+  #       if: steps.builder-changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+  #       run: |
+  #         if [[ -f "infra/containers/builder/Dockerfile" && -f "infra/containers/builder/build-zaraos.sh" ]]; then
+  #           HASH=$(cat infra/containers/builder/Dockerfile infra/containers/builder/build-zaraos.sh | sha256sum | cut -d' ' -f1)
+  #         else
+  #           HASH="no-files"
+  #         fi
+  #         echo "hash=$HASH" >> $GITHUB_OUTPUT
+  #         echo "Builder hash: $HASH"
 
   build-containers:
-    needs: detect-changes
+    # needs: detect-changes
     runs-on: [gideon, basic]
     permissions:
       contents: read
@@ -232,22 +232,3 @@ jobs:
         with:
           path: .container-hash-${{ matrix.container }}
           key: container-hash-${{ matrix.container }}-${{ needs.detect-changes.outputs.builder-hash }}
-
-  generate-summary:
-    needs: [detect-changes, build-containers]
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Generate build summary
-        run: |
-          echo "## ZaraOS Container Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Builder Changed**: ${{ needs.detect-changes.outputs.builder-changed }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Dev Changed**: ${{ needs.detect-changes.outputs.dev-changed }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Registry**: ${{ env.REGISTRY }}/${{ github.repository_owner }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Build Time**: $(date)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Available Images:" >> $GITHUB_STEP_SUMMARY
-          echo "- **zaraos-builder**: Single platform (linux/amd64) with smart caching" >> $GITHUB_STEP_SUMMARY
-          echo "- **zaraos-dev**: Multi-platform (linux/amd64, linux/arm64)" >> $GITHUB_STEP_SUMMARY
