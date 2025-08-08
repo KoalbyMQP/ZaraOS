@@ -1,0 +1,26 @@
+# Global Owners
+# Original Author & Primary Maintainer: jake-molnia
+# These owners will be the default owners for everything in the repo
+# unless a later match takes precedence.
+
+* @jake-molnia
+
+# You can also specify ownership for specific file types or directories
+# Examples (uncomment and modify as needed):
+
+# Documentation
+# *.md @jake-molnia
+# docs/ @jake-molnia
+
+# Configuration files
+# *.yaml @jake-molnia
+# *.yml @jake-molnia
+# *.json @jake-molnia
+
+# GitHub workflows
+# .github/workflows/ @jake-molnia
+
+# Build configurations
+# justfile @jake-molnia
+# */Config.in @jake-molnia
+# configs/ @jake-molnia
