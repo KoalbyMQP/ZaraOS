@@ -2,7 +2,7 @@ name: Build ZaraOS Containers
 
 on:
   push:
-    branches: [main, develop, feature/actions-stable]
+    branches: [main, develop]
     # paths:
     #   - 'infra/containers/builder/**'
     #   - 'infra/containers/dev/**'

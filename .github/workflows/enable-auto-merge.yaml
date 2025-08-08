@@ -1,8 +1,6 @@
 name: Enable Auto-merge for Dependabot
 
 on:
-  push:
-    branches: [main, develop, feature/actions-stable]
   pull_request:
     types: [opened, reopened]
 
