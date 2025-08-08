@@ -1,74 +1,180 @@
-name: Build Container
+name: Build ZaraOS Containers
 
 on:
   push:
+    branches: [main, develop, feature/actions-stable]
+    # paths:
+    #   - 'infra/containers/builder/**'
+    #   - 'infra/containers/dev/**'
+  pull_request:
     branches: [main, develop]
-    paths:
-      - 'infra/containers/builder/Dockerfile'
-      - 'infra/containers/builder/build-zaraos.sh'
+    # paths:
+    #   - 'infra/containers/builder/**'
+    #   - 'infra/containers/dev/**'
   workflow_dispatch:
     inputs:
       force_build:
         description: 'Force build even if no changes detected'
         type: boolean
         default: false
+      container_type:
+        description: 'Container type to build (all, builder, dev)'
+        type: choice
+        options:
+          - all
+          - builder
+          - dev
+        default: all
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/zaraos-builder
 
 jobs:
-  build:
+  # detect-changes:
+  #   runs-on: ubuntu-latest
+  #   outputs:
+  #     builder-changed: ${{ steps.builder-changes.outputs.changed }}
+  #     dev-changed: ${{ steps.dev-changes.outputs.changed }}
+  #     builder-hash: ${{ steps.builder-hash.outputs.hash }}
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 2
+  #     - name: Check builder changes
+  #       id: builder-changes
+  #       run: |
+  #         if git diff --name-only HEAD~1 HEAD | grep -q "^infra/containers/builder/"; then
+  #           echo "changed=true" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "changed=false" >> $GITHUB_OUTPUT
+  #         fi
+  #     - name: Check dev changes
+  #       id: dev-changes
+  #       run: |
+  #         if git diff --name-only HEAD~1 HEAD | grep -q "^infra/containers/dev/"; then
+  #           echo "changed=true" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "changed=false" >> $GITHUB_OUTPUT
+  #         fi
+  #     - name: Calculate builder hash
+  #       id: builder-hash
+  #       if: steps.builder-changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+  #       run: |
+  #         if [[ -f "infra/containers/builder/Dockerfile" && -f "infra/containers/builder/build-zaraos.sh" ]]; then
+  #           HASH=$(cat infra/containers/builder/Dockerfile infra/containers/builder/build-zaraos.sh | sha256sum | cut -d' ' -f1)
+  #         else
+  #           HASH="no-files"
+  #         fi
+  #         echo "hash=$HASH" >> $GITHUB_OUTPUT
+  #         echo "Builder hash: $HASH"
+
+  build-containers:
     runs-on: [gideon, basic]
     permissions:
       contents: read
       packages: write
 
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Builder container - single platform, smart caching
+          - container: builder
+            dockerfile: infra/containers/builder/Dockerfile
+            platforms: linux/amd64
+            build-args: |
+              BUILDROOT_VERSION=2025.02.x
+            smart-cache: true
+          # Dev container - multi-platform
+          - container: dev
+            dockerfile: infra/containers/dev/Dockerfile
+            platforms: linux/amd64,linux/arm64
+            build-args: ""
+            smart-cache: false
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Calculate file hash
-        id: hash
-        run: |
-          # Create hash of Dockerfile and build script
-          HASH=$(cat infra/containers/builder/Dockerfile infra/containers/builder/build-zaraos.sh | sha256sum | cut -d' ' -f1)
-          echo "current_hash=$HASH" >> $GITHUB_OUTPUT
-          echo "Current hash: $HASH"
-
-      - name: Check previous hash
-        id: cache-check
-        uses: actions/cache@v4
-        with:
-          path: .container-hash
-          key: container-hash-${{ steps.hash.outputs.current_hash }}
-          lookup-only: true
-
       - name: Determine if build needed
         id: should-build
         run: |
-          SHOULD_BUILD="false"
+          SHOULD_BUILD="true"  # Build everything for now
+          CONTAINER_TYPE="${{ matrix.container }}"
 
-          # Always build on manual dispatch with force option
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.force_build }}" == "true" ]]; then
-            SHOULD_BUILD="true"
-            echo "Build reason: Manual dispatch with force"
-          # Build if hash changed (cache miss)
-          elif [[ "${{ steps.cache-check.outputs.cache-hit }}" != "true" ]]; then
-            SHOULD_BUILD="true"
-            echo "Build reason: Hash changed"
+          # Check manual dispatch conditions for selective building
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ github.event.inputs.container_type }}" != "all" && "${{ github.event.inputs.container_type }}" != "$CONTAINER_TYPE" ]]; then
+              SHOULD_BUILD="false"
+              echo "Build reason: Manual dispatch - skipping $CONTAINER_TYPE"
+            else
+              echo "Build reason: Manual dispatch for $CONTAINER_TYPE"
+            fi
           else
-            echo "Build reason: Hash unchanged, skipping build"
+            echo "Build reason: Always build (change detection disabled)"
           fi
 
           echo "should_build=$SHOULD_BUILD" >> $GITHUB_OUTPUT
 
+      - name: Calculate builder hash for caching
+        if: matrix.smart-cache == 'true' && steps.should-build.outputs.should_build == 'true'
+        id: calculate-hash
+        run: |
+          if [[ -f "infra/containers/builder/Dockerfile" && -f "infra/containers/builder/build-zaraos.sh" ]]; then
+            HASH=$(cat infra/containers/builder/Dockerfile infra/containers/builder/build-zaraos.sh | sha256sum | cut -d' ' -f1)
+          else
+            HASH="no-files"
+          fi
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+          echo "Builder hash: $HASH"
+
+      - name: Check builder cache
+        if: matrix.smart-cache == 'true' && steps.should-build.outputs.should_build == 'true'
+        id: builder-cache-check
+        uses: actions/cache@v4
+        with:
+          path: .container-hash-${{ matrix.container }}
+          key: container-hash-${{ matrix.container }}-${{ steps.calculate-hash.outputs.hash }}
+          lookup-only: true
+
+      - name: Final build decision for builder
+        if: matrix.smart-cache == 'true' && steps.should-build.outputs.should_build == 'true'
+        id: final-build-check
+        run: |
+          if [[ "${{ steps.builder-cache-check.outputs.cache-hit }}" == "true" && "${{ github.event.inputs.force_build }}" != "true" ]]; then
+            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "Build reason: Builder hash unchanged, skipping build"
+          else
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "Build reason: Builder hash changed or force build"
+          fi
+
+      - name: Set final build status
+        id: build-status
+        run: |
+          if [[ "${{ matrix.smart-cache }}" == "true" ]]; then
+            echo "build=${{ steps.final-build-check.outputs.should_build }}" >> $GITHUB_OUTPUT
+          else
+            echo "build=${{ steps.should-build.outputs.should_build }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Prepare platform variables
+        if: steps.build-status.outputs.build == 'true' && contains(matrix.platforms, ',')
+        run: |
+          # This step only runs for multi-platform builds
+          echo "Multi-platform build detected"
+
+      - name: Set up QEMU
+        if: steps.build-status.outputs.build == 'true' && contains(matrix.platforms, ',')
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
-        if: steps.should-build.outputs.should_build == 'true'
+        if: steps.build-status.outputs.build == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
-        if: steps.should-build.outputs.should_build == 'true' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+        if: steps.build-status.outputs.build == 'true' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch')
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -76,35 +182,46 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata
-        if: steps.should-build.outputs.should_build == 'true'
+        if: steps.build-status.outputs.build == 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/zaraos-${{ matrix.container }}
           tags: |
-            type=raw,value=latest
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short,enable={{is_default_branch}}
+            type=ref,event=pr,prefix=pr-
+            type=ref,event=branch,prefix=branch-
+          labels: |
+            org.opencontainers.image.title=ZaraOS ${{ matrix.container }} Container
+            org.opencontainers.image.description=${{ matrix.container == 'builder' && 'Build environment for ZaraOS' || 'Development environment for ZaraOS' }}
+            org.opencontainers.image.vendor=${{ github.repository_owner }}
 
-      - name: Build container image
-        if: steps.should-build.outputs.should_build == 'true'
-        uses: docker/build-push-action@v5
+      - name: Build and push
+        if: steps.build-status.outputs.build == 'true'
+        uses: docker/build-push-action@v6
         with:
           context: .
-          file: infra/containers/builder/Dockerfile
-          push: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platforms }}
+          push: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch' }}
           tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            BUILDROOT_VERSION=2025.02.x
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          cache-from: type=gha,scope=${{ matrix.container }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.container }}
+          build-args: ${{ matrix.build-args }}
+          provenance: true
+          sbom: true
 
-      - name: Save hash to cache
-        if: steps.should-build.outputs.should_build == 'true'
+      - name: Save builder hash to cache
+        if: matrix.smart-cache == 'true' && steps.build-status.outputs.build == 'true'
         run: |
-          echo "${{ steps.hash.outputs.current_hash }}" > .container-hash
+          echo "${{ steps.calculate-hash.outputs.hash }}" > .container-hash-${{ matrix.container }}
 
-      - name: Cache hash for future runs
-        if: steps.should-build.outputs.should_build == 'true'
+      - name: Cache builder hash for future runs
+        if: matrix.smart-cache == 'true' && steps.build-status.outputs.build == 'true'
         uses: actions/cache/save@v4
         with:
-          path: .container-hash
-          key: container-hash-${{ steps.hash.outputs.current_hash }}
+          path: .container-hash-${{ matrix.container }}
+          key: container-hash-${{ matrix.container }}-${{ steps.calculate-hash.outputs.hash }}

@@ -191,7 +191,7 @@ jobs:
       - name: Post-build cache cleanup
         if: always()
         run: |
-          # Clean unnecessary files to keep cache size manageable
+          # Clean unnecessary files to keep cache size manageable!
           find /tmp/zaraos-build -name "*.o" -delete 2>/dev/null || true
           find /tmp/zaraos-build -name "*.a" -delete 2>/dev/null || true
 
