@@ -41,7 +41,6 @@ jobs:
   #       uses: actions/checkout@v4
   #       with:
   #         fetch-depth: 2
-
   #     - name: Check builder changes
   #       id: builder-changes
   #       run: |
@@ -50,7 +49,6 @@ jobs:
   #         else
   #           echo "changed=false" >> $GITHUB_OUTPUT
   #         fi
-
   #     - name: Check dev changes
   #       id: dev-changes
   #       run: |
@@ -59,7 +57,6 @@ jobs:
   #         else
   #           echo "changed=false" >> $GITHUB_OUTPUT
   #         fi
-
   #     - name: Calculate builder hash
   #       id: builder-hash
   #       if: steps.builder-changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
@@ -73,7 +70,6 @@ jobs:
   #         echo "Builder hash: $HASH"
 
   build-containers:
-    # needs: detect-changes
     runs-on: [gideon, basic]
     permissions:
       contents: read
@@ -104,37 +100,34 @@ jobs:
       - name: Determine if build needed
         id: should-build
         run: |
-          SHOULD_BUILD="false"
+          SHOULD_BUILD="true"  # Build everything for now
           CONTAINER_TYPE="${{ matrix.container }}"
 
-          # Check manual dispatch conditions
+          # Check manual dispatch conditions for selective building
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            if [[ "${{ github.event.inputs.force_build }}" == "true" ]]; then
-              SHOULD_BUILD="true"
-              echo "Build reason: Manual dispatch with force"
-            elif [[ "${{ github.event.inputs.container_type }}" == "all" || "${{ github.event.inputs.container_type }}" == "$CONTAINER_TYPE" ]]; then
-              SHOULD_BUILD="true"
+            if [[ "${{ github.event.inputs.container_type }}" != "all" && "${{ github.event.inputs.container_type }}" != "$CONTAINER_TYPE" ]]; then
+              SHOULD_BUILD="false"
+              echo "Build reason: Manual dispatch - skipping $CONTAINER_TYPE"
+            else
               echo "Build reason: Manual dispatch for $CONTAINER_TYPE"
             fi
-          # Check for file changes
-          elif [[ "$CONTAINER_TYPE" == "builder" && "${{ needs.detect-changes.outputs.builder-changed }}" == "true" ]]; then
-            SHOULD_BUILD="true"
-            echo "Build reason: Builder files changed"
-          elif [[ "$CONTAINER_TYPE" == "dev" && "${{ needs.detect-changes.outputs.dev-changed }}" == "true" ]]; then
-            SHOULD_BUILD="true"
-            echo "Build reason: Dev files changed"
-          # For PR events, build if files changed
-          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            if [[ "$CONTAINER_TYPE" == "builder" && "${{ needs.detect-changes.outputs.builder-changed }}" == "true" ]]; then
-              SHOULD_BUILD="true"
-              echo "Build reason: Builder PR with changes"
-            elif [[ "$CONTAINER_TYPE" == "dev" && "${{ needs.detect-changes.outputs.dev-changed }}" == "true" ]]; then
-              SHOULD_BUILD="true"
-              echo "Build reason: Dev PR with changes"
-            fi
+          else
+            echo "Build reason: Always build (change detection disabled)"
           fi
 
           echo "should_build=$SHOULD_BUILD" >> $GITHUB_OUTPUT
+
+      - name: Calculate builder hash for caching
+        if: matrix.smart-cache == 'true' && steps.should-build.outputs.should_build == 'true'
+        id: calculate-hash
+        run: |
+          if [[ -f "infra/containers/builder/Dockerfile" && -f "infra/containers/builder/build-zaraos.sh" ]]; then
+            HASH=$(cat infra/containers/builder/Dockerfile infra/containers/builder/build-zaraos.sh | sha256sum | cut -d' ' -f1)
+          else
+            HASH="no-files"
+          fi
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+          echo "Builder hash: $HASH"
 
       - name: Check builder cache
         if: matrix.smart-cache == 'true' && steps.should-build.outputs.should_build == 'true'
@@ -142,7 +135,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .container-hash-${{ matrix.container }}
-          key: container-hash-${{ matrix.container }}-${{ needs.detect-changes.outputs.builder-hash }}
+          key: container-hash-${{ matrix.container }}-${{ steps.calculate-hash.outputs.hash }}
           lookup-only: true
 
       - name: Final build decision for builder
@@ -224,11 +217,11 @@ jobs:
       - name: Save builder hash to cache
         if: matrix.smart-cache == 'true' && steps.build-status.outputs.build == 'true'
         run: |
-          echo "${{ needs.detect-changes.outputs.builder-hash }}" > .container-hash-${{ matrix.container }}
+          echo "${{ steps.calculate-hash.outputs.hash }}" > .container-hash-${{ matrix.container }}
 
       - name: Cache builder hash for future runs
         if: matrix.smart-cache == 'true' && steps.build-status.outputs.build == 'true'
         uses: actions/cache/save@v4
         with:
           path: .container-hash-${{ matrix.container }}
-          key: container-hash-${{ matrix.container }}-${{ needs.detect-changes.outputs.builder-hash }}
+          key: container-hash-${{ matrix.container }}-${{ steps.calculate-hash.outputs.hash }}
