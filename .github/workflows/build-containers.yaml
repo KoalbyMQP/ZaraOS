@@ -3,14 +3,14 @@ name: Build ZaraOS Containers
 on:
   push:
     branches: [main, develop, feature/actions-stable]
-    paths:
-      - 'infra/containers/builder/**'
-      - 'infra/containers/dev/**'
+    # paths:
+    #   - 'infra/containers/builder/**'
+    #   - 'infra/containers/dev/**'
   pull_request:
     branches: [main, develop]
-    paths:
-      - 'infra/containers/builder/**'
-      - 'infra/containers/dev/**'
+    # paths:
+    #   - 'infra/containers/builder/**'
+    #   - 'infra/containers/dev/**'
   workflow_dispatch:
     inputs:
       force_build:
