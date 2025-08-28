@@ -30,13 +30,21 @@ jobs:
           restore-keys: |
             buildroot-dl-
 
-      - name: Cache ccache
-        uses: actions/cache@v4
+      - name: Restore ccache
+        if: github.event.inputs.clean_build != 'true'
+        uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
-          key: ccache-${{ github.run_number }}
+          key: ccache-${{ github.ref_name }}-${{ hashFiles('ZaraOS/configs/zaraos_pi5_defconfig') }}
           restore-keys: |
-            ccache-
+            ccache-${{ github.ref_name }}-
+
+      - name: Clean workspace
+        if: github.event.inputs.clean_build == 'true'
+        run: |
+          rm -rf output || true
+          rm -rf /tmp/zaraos-build || true
+          rm -rf /tmp/ccache || true
 
       - name: Setup buildroot
         run: |
@@ -58,13 +66,6 @@ jobs:
           sudo rm -rf /opt/buildroot
           sudo cp -r ZaraOS/buildroot /opt/buildroot
           ls -la /opt/buildroot/
-
-      - name: Clean workspace
-        if: github.event.inputs.clean_build == 'true'
-        run: |
-          rm -rf output || true
-          rm -rf /tmp/zaraos-build || true
-          rm -rf /tmp/ccache || true
 
       - name: Get CPU count and optimize parallelism
         id: cpu-count
@@ -187,7 +188,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Save cache after successful build
+      - name: Save ccache
+        if: success() && github.event.inputs.clean_build != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/ccache
+          key: ccache-${{ github.ref_name }}-${{ hashFiles('ZaraOS/configs/zaraos_pi5_defconfig') }}
+
       - name: Post-build cache cleanup
         if: always()
         run: |
