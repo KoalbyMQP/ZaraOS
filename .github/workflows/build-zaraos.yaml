@@ -22,45 +22,20 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Cache buildroot downloads
-        uses: actions/cache@v4
-        with:
-          path: /tmp/zaraos-dl
-          key: buildroot-dl-${{ hashFiles('ZaraOS/configs/zaraos_pi5_defconfig') }}
-          restore-keys: |
-            buildroot-dl-
-
-      - name: Restore ccache
-        if: github.event.inputs.clean_build != 'true'
-        uses: actions/cache/restore@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-${{ github.ref_name }}-${{ hashFiles('ZaraOS/configs/zaraos_pi5_defconfig') }}
-          restore-keys: |
-            ccache-${{ github.ref_name }}-
-
       - name: Clean workspace
-        if: github.event.inputs.clean_build == 'true'
         run: |
           rm -rf output || true
           rm -rf /tmp/zaraos-build || true
           rm -rf /tmp/ccache || true
+          rm -rf /tmp/zaraos-dl || true
 
       - name: Setup buildroot
         run: |
           echo "Installing build dependencies"
           sudo apt-get update
-          sudo apt-get install -y ccache bc file cpio unzip rsync wget python3 python3-dev \
+          sudo apt-get install -y bc file cpio unzip rsync wget python3 python3-dev \
             build-essential autoconf automake libtool pkg-config \
             libncurses5-dev libssl-dev bison flex
-
-          echo "Setting up ccache"
-          mkdir -p /tmp/ccache
-          ccache --set-config=cache_dir=/tmp/ccache
-          ccache --set-config=max_size=2G
-          ccache --set-config=compression=true
-          ccache --zero-stats
-          ccache --show-config
 
           echo "Copying buildroot submodule to /opt/buildroot"
           sudo rm -rf /opt/buildroot
@@ -82,35 +57,28 @@ jobs:
         env:
           FORCE_UNSAFE_CONFIGURE: 1
           CONFIG_SHELL: /bin/bash
-          CCACHE_DIR: /tmp/ccache
-          PATH: /usr/lib/ccache:/usr/local/bin:/usr/bin:/bin
         run: |
           echo "Building ZaraOS with ${{ steps.cpu-count.outputs.jobs }} parallel jobs"
-          echo "ccache stats before build:"
-          ccache --show-stats
 
           # Set up build directories
           BUILD_DIR="/tmp/zaraos-build"
           DL_DIR="/tmp/zaraos-dl"
           mkdir -p "$BUILD_DIR" "$DL_DIR" output
 
-          # Configure buildroot with explicit shell and ccache
+          # Configure buildroot with explicit shell
           CONFIG_SHELL=/bin/bash make -C /opt/buildroot \
             O="$BUILD_DIR" \
             BR2_DL_DIR="$DL_DIR" \
             BR2_EXTERNAL="$(pwd)/ZaraOS" \
             zaraos_pi5_defconfig
 
-          # Build the OS with ccache enabled
+          # Build the OS
           CONFIG_SHELL=/bin/bash make -C /opt/buildroot \
             O="$BUILD_DIR" \
             BR2_DL_DIR="$DL_DIR" \
             BR2_EXTERNAL="$(pwd)/ZaraOS" \
             -j${{ steps.cpu-count.outputs.jobs }} \
             V=1
-
-          echo "ccache stats after build:"
-          ccache --show-stats
 
           # Copy artifacts
           if [ -d "$BUILD_DIR/images" ]; then
@@ -188,20 +156,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Save ccache
-        if: success() && github.event.inputs.clean_build != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-${{ github.ref_name }}-${{ hashFiles('ZaraOS/configs/zaraos_pi5_defconfig') }}
-
-      - name: Post-build cache cleanup
-        if: always()
-        run: |
-          # Clean unnecessary files to keep cache size manageable!
-          find /tmp/zaraos-build -name "*.o" -delete 2>/dev/null || true
-          find /tmp/zaraos-build -name "*.a" -delete 2>/dev/null || true
-
       - name: Cleanup
         if: always()
-        run: rm -rf /tmp/zaraos-build/target || true
+        run: |
+          rm -rf /tmp/zaraos-build || true
+          rm -rf /tmp/zaraos-dl || true
