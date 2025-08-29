@@ -23,17 +23,17 @@ fi
 if [ ! -f /tmp/zaraos-first-boot ]; then
     echo "Starting ZaraOS demonstration script..."
     echo ""
-    
+
     # Mark that we've done first boot
     touch /tmp/zaraos-first-boot
-    
+
     # Run the demo script
     if [ -x /usr/local/bin/demo.py ]; then
         python3 /usr/local/bin/demo.py
     else
         echo "ZaraOS demo script not found at /usr/local/bin/demo.py"
     fi
-    
+
     echo ""
     echo "Demo completed. You now have a shell."
     echo "Type 'zaraos-demo' to run the demo again."

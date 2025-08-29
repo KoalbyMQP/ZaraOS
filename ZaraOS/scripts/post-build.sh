@@ -1,10 +1,15 @@
 #!/bin/sh
 # ===================================================================
-# ZaraOS Post-Build Script
+# ZaraOS Post-Build Script - Simplified Version
 # ===================================================================
 # This script runs after the root filesystem is built but before
-# creating the final filesystem images. It customizes the target
-# filesystem for ZaraOS requirements.
+# creating the final filesystem images. Most customizations are now
+# handled by the rootfs overlay system for better maintainability.
+#
+# This script now only handles:
+# - File permissions that can't be set via overlay
+# - Filesystem optimization and cleanup
+# - Security-related tasks
 #
 # Documentation:
 # - Buildroot Post-Build: https://buildroot.org/downloads/manual/manual.html#rootfs-custom
@@ -19,135 +24,74 @@ set -u  # Exit on undefined variables
 set -e  # Exit on any error
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ CONSOLE CONFIGURATION                                           │
+# │ FILE PERMISSIONS                                                │
 # └─────────────────────────────────────────────────────────────────┘
 
-# Add HDMI console support alongside serial console
-# This ensures users can access the system via monitor+keyboard
-# in addition to the serial UART console
+echo "Setting file permissions for ZaraOS"
 
-if [ -e ${TARGET_DIR}/etc/inittab ]; then
-    # For SysV init systems (BusyBox default)
-    echo "Configuring HDMI console in /etc/inittab"
-    
-    # Check if tty1 console already exists
-    if ! grep -qE '^tty1::' ${TARGET_DIR}/etc/inittab; then
-        # Add tty1 console entry after the GENERIC_SERIAL line
-        sed -i '/GENERIC_SERIAL/a\
-tty1::respawn:/sbin/getty -L  tty1 0 vt100 # HDMI console' ${TARGET_DIR}/etc/inittab
-        echo "Added HDMI console (tty1) to inittab"
-    else
-        echo "HDMI console already configured in inittab"
-    fi
-
-elif [ -d ${TARGET_DIR}/etc/systemd ]; then
-    # For systemd-based systems
-    echo "Configuring HDMI console for systemd"
-    
-    # Create systemd service directory
-    mkdir -p "${TARGET_DIR}/etc/systemd/system/getty.target.wants"
-    
-    # Enable getty service on tty1 (HDMI console)
-    ln -sf /lib/systemd/system/getty@.service \
-       "${TARGET_DIR}/etc/systemd/system/getty.target.wants/getty@tty1.service"
-    echo "Enabled HDMI console service for systemd"
-    
+# Make Python demo script executable
+if [ -f "${TARGET_DIR}/usr/local/bin/demo.py" ]; then
+    chmod +x "${TARGET_DIR}/usr/local/bin/demo.py"
+    echo "Made demo.py executable"
 else
-    echo "Warning: Unknown init system, console configuration may be incomplete"
+    echo "Warning: demo.py not found (overlay may not have been applied)"
 fi
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ ZARAOS SPECIFIC CUSTOMIZATIONS                                  │
-# └─────────────────────────────────────────────────────────────────┘
-
-# Create ZaraOS identification file
-echo "Creating ZaraOS system identification..."
-cat > ${TARGET_DIR}/etc/zaraos-release << EOF
-ZaraOS for Humanoid Robots MQP
-Built on: $(date)
-Target: Raspberry Pi 5
-Buildroot: $(cat ${BR2_VERSION_FULL:-"unknown"} 2>/dev/null || echo "unknown")
-Architecture: aarch64
-EOF
-
-# Set hostname to zaraos
-echo "zaraos" > ${TARGET_DIR}/etc/hostname
-echo "Set hostname to 'zaraos'"
-
-# Configure welcome message
-if [ -d ${TARGET_DIR}/etc ]; then
-    cat > ${TARGET_DIR}/etc/motd << EOF
-
- ______                  _____ _____ 
-|___  /                 |  _  /  ___|
-   / / __ _ _ __ __ _    | | | \ \`--. 
-  / / / _\` | '__/ _\` |   | | | |\`--. \\
- / /_| (_| | | | (_| |   \ \_/ /\__/ /
-/_____\__,_|_|  \__,_|    \___/\____/ 
-
-Raspberry Pi OS for Humanoid Robots MQP
-Type 'help' for available commands.
-
-Serial Console: Available on GPIO UART (115200 baud)
-HDMI Console:   Connect monitor and keyboard
-
-EOF
-    echo "Created welcome message"
+# Make autologin script executable
+if [ -f "${TARGET_DIR}/usr/bin/autologin.sh" ]; then
+    chmod +x "${TARGET_DIR}/usr/bin/autologin.sh"
+    echo "Made autologin.sh executable"
+else
+    echo "Warning: autologin.sh not found (overlay may not have been applied)"
 fi
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ NETWORK CONFIGURATION                                           │
-# └─────────────────────────────────────────────────────────────────┘
-
-# Ensure network interfaces are properly configured
-if [ -d ${TARGET_DIR}/etc/network ]; then
-    # Create basic network configuration if it doesn't exist
-    if [ ! -f ${TARGET_DIR}/etc/network/interfaces ]; then
-        cat > ${TARGET_DIR}/etc/network/interfaces << EOF
-# Network interfaces configuration for ZaraOS
-auto lo
-iface lo inet loopback
-
-# Ethernet interface with DHCP (configured in defconfig)
-auto eth0
-iface eth0 inet dhcp
-
-# Wireless interface (if available and configured)
-# auto wlan0  
-# iface wlan0 inet dhcp
-EOF
-        echo "Created basic network interfaces configuration"
-    fi
+# Make startup script executable
+if [ -f "${TARGET_DIR}/etc/profile.d/zaraos-startup.sh" ]; then
+    chmod +x "${TARGET_DIR}/etc/profile.d/zaraos-startup.sh"
+    echo "Made zaraos-startup.sh executable"
+else
+    echo "Warning: zaraos-startup.sh not found (overlay may not have been applied)"
 fi
 
+# Set appropriate permissions for security
+echo "Setting security permissions"
+
+# Ensure root directories have correct permissions
+chmod 755 "${TARGET_DIR}/etc" 2>/dev/null || true
+chmod 755 "${TARGET_DIR}/var" 2>/dev/null || true
+chmod 1777 "${TARGET_DIR}/tmp" 2>/dev/null || true  # sticky bit for tmp
+
+# Ensure /usr/local/bin is executable
+chmod 755 "${TARGET_DIR}/usr/local/bin" 2>/dev/null || true
+
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ SECURITY AND OPTIMIZATION                                       │
+# │ FILESYSTEM OPTIMIZATION                                         │
 # └─────────────────────────────────────────────────────────────────┘
 
-# Remove unnecessary files to reduce filesystem size
 echo "Optimizing filesystem size"
 
 # Remove documentation that's not essential for embedded system
-if [ -d ${TARGET_DIR}/usr/share/doc ]; then
-    rm -rf ${TARGET_DIR}/usr/share/doc/*
+if [ -d "${TARGET_DIR}/usr/share/doc" ]; then
+    rm -rf "${TARGET_DIR}/usr/share/doc"/* 2>/dev/null || true
     echo "Cleaned documentation files"
 fi
 
 # Remove man pages
-if [ -d ${TARGET_DIR}/usr/share/man ]; then
-    rm -rf ${TARGET_DIR}/usr/share/man/*
+if [ -d "${TARGET_DIR}/usr/share/man" ]; then
+    rm -rf "${TARGET_DIR}/usr/share/man"/* 2>/dev/null || true
     echo "Cleaned man pages"
 fi
 
-# Set appropriate permissions for security
-echo "Setting file permissions"
+# Remove locale files except C/POSIX (saves space)
+if [ -d "${TARGET_DIR}/usr/share/locale" ]; then
+    find "${TARGET_DIR}/usr/share/locale" -mindepth 1 -maxdepth 1 -type d ! -name 'C' ! -name 'POSIX' -exec rm -rf {} + 2>/dev/null || true
+    echo "Cleaned locale files"
+fi
 
-# Ensure root directories have correct permissions
-chmod 755 ${TARGET_DIR}/etc
-chmod 755 ${TARGET_DIR}/var
-chmod 1777 ${TARGET_DIR}/tmp 2>/dev/null || true  # sticky bit for tmp
-
-echo "Set security permissions"
+# Remove Python cache files if any were created
+find "${TARGET_DIR}" -name "*.pyc" -delete 2>/dev/null || true
+find "${TARGET_DIR}" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+echo "Cleaned Python cache files"
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ COMPLETION                                                      │
@@ -156,11 +100,12 @@ echo "Set security permissions"
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
 echo "ZaraOS post-build script completed successfully"
-echo "  - Console configuration: HDMI + Serial"
-echo "  - System identification: /etc/zaraos-release"
-echo "  - Hostname: zaraos"
-echo "  - Network: DHCP on eth0"
-echo "  - Development aliases: /etc/profile.d/zaraos-aliases.sh"
+echo "  - File permissions: Set"
 echo "  - Filesystem optimization: Complete"
+echo "  - Overlay validation: Complete"
+echo "  - Python demo script: Ready"
+echo "  - Auto-login script: Ready"
+echo "  - Auto-login: Configured via overlay"
+echo "  - Network: DHCP configured"
 echo "═══════════════════════════════════════════════════════════════"
 echo ""

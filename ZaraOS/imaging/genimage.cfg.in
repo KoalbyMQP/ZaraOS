@@ -28,21 +28,22 @@ image boot.vfat {
 		files = {
 #BOOT_FILES#
 		}
-		
+
 		# Include overlays directory with all its contents
 		file overlays {
 			image = "overlays"
 		}
 	}
-	
-	# Boot partition size - 40MB to accommodate overlays directory
-	# FIXME: updates numbers
+
+	# Boot partition size - 80MB to accommodate all Pi firmware, overlays, and DTBs
+	# Updated to handle the large number of device tree files and overlays
 	# - Raspberry Pi firmware (~15MB)
-	# - Kernel images (~10MB)  
-	# - Device tree files (~1MB)
-	# - Overlays directory (~10MB)
-	# - Configuration files (<1MB)
-	size = 40M
+	# - Kernel images (~10MB)
+	# - Device tree files (~2MB)
+	# - Overlays directory (~20MB+)
+	# - Configuration files (~1MB)
+	# - Safety margin for future additions
+	size = 80M
 }
 
 # Main SD card image with partition table
@@ -59,7 +60,7 @@ image sdcard.img {
 		image = "boot.vfat"
 	}
 
-	# Root filesystem partition - EXT4  
+	# Root filesystem partition - EXT4
 	partition rootfs {
 		partition-type = 0x83   # Linux filesystem
 		image = "rootfs.ext4"

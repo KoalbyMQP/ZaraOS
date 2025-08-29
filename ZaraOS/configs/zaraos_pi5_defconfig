@@ -11,7 +11,7 @@
 #
 # Target: Raspberry Pi 5 B (4GB/8GB models)
 # Architecture: AArch64 (64-bit ARM)
-# Kernel: 6.12 (Raspberry Pi kernel fork) 
+# Kernel: 6.12 (Raspberry Pi kernel fork)
 # ===================================================================
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -30,10 +30,12 @@ BR2_cortex_a76=y
 
 BR2_TOOLCHAIN_BUILDROOT=y
 BR2_TOOLCHAIN_BUILDROOT_CXX=y
+BR2_TOOLCHAIN_BUILDROOT_FORTRAN=y
 BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_TARBALL=y
 BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_TARBALL_LOCATION="$(call github,raspberrypi,linux,8f77e03530f65209a377d25023e912b288e039cd)/linux-8f77e03530f65209a377d25023e912b288e039cd.tar.gz"
 BR2_TOOLCHAIN_HEADERS_SAME_AS_KERNEL=y
 BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_12=y
+BR2_TOOLCHAIN_BUILDROOT_GLIBC=y
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ BUILD SYSTEM CONFIGURATION                                      │
@@ -49,10 +51,27 @@ BR2_DOWNLOAD_FORCE_CHECK_HASHES=y
 # │ SYSTEM CONFIGURATION                                            │
 # └─────────────────────────────────────────────────────────────────┘
 
+# Init system - use BusyBox init (lightweight and sufficient)
+BR2_INIT_BUSYBOX=y
+
+# Target skeleton filesystem (provides basic directory structure)
+BR2_ROOTFS_SKELETON_DEFAULT=y
+
+# System configuration
+BR2_TARGET_GENERIC_HOSTNAME="zaraos"
+BR2_TARGET_GENERIC_ISSUE="Welcome to ZaraOS"
+
+# BusyBox configuration - temporarily using default for troubleshooting
+BR2_PACKAGE_BUSYBOX=y
+# BR2_PACKAGE_BUSYBOX_CONFIG="$(BR2_EXTERNAL_ZaraOS_PATH)/configs/busybox-minimal.config"
+
 # Enable DHCP on eth0 for automatic network configuration
 BR2_SYSTEM_DHCP="eth0"
 
-# Post-build script - sets up console and system tweaks
+# ZaraOS filesystem overlay - applies custom files to rootfs
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ZaraOS_PATH)/overlays"
+
+# Post-build script - for cleanup tasks only
 BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_ZaraOS_PATH)/scripts/post-build.sh"
 
 # Post-image script - generates final SD card image
@@ -75,15 +94,15 @@ BR2_LINUX_KERNEL_CUSTOM_TARBALL_LOCATION="$(call github,raspberrypi,linux,8f77e0
 BR2_LINUX_KERNEL_DEFCONFIG="bcm2712"
 #BR2_LINUX_KERNEL_DEFCONFIG="defconfig"
 
-# Apply custom kernel configuration fragment
 # This enables 16K page size as standard for Pi 5
 BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragments/linux-pi5.fragment"
 
 # Kernel requires OpenSSL for module signing
 BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
 
-# FORCE 16k PAGE SIZE FOR PI 5 OPTIM THIS HAS TO ALSO BE CHANGES IN THE KERNAL PATCH! 
-BR2_ARM64_PAGE_SIZE_16K=y  
+# FORCE 16k PAGE SIZE FOR PI 5 OPTIMIZATION - REQUIRED FOR PERFORMANCE!
+# This HAS TO ALSO BE CHANGED IN THE KERNEL PATCH!
+BR2_ARM64_PAGE_SIZE_16K=y
 BR2_ARM64_PAGE_SIZE="16K"
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -91,10 +110,43 @@ BR2_ARM64_PAGE_SIZE="16K"
 # └─────────────────────────────────────────────────────────────────┘
 
 # Allow showing packages provided by BusyBox (for debugging)
-BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y
+# BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y
 
 # XZ compression utilities (useful for package management)
 BR2_PACKAGE_XZ=y
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ PYTHON 3 CONFIGURATION                                         │
+# └─────────────────────────────────────────────────────────────────┘
+
+# Enable Python 3 interpreter
+BR2_PACKAGE_PYTHON3=y
+
+# Essential Python3 modules (required for basic functionality)
+BR2_PACKAGE_PYTHON3_UNICODEDATA=y
+BR2_PACKAGE_PYTHON3_BZIP2=y
+BR2_PACKAGE_PYTHON3_SSL=y
+BR2_PACKAGE_PYTHON3_READLINE=y
+BR2_PACKAGE_PYTHON3_CURSES=y
+
+# Python module format - use compiled bytecode only to save space
+BR2_PACKAGE_PYTHON3_PYC_ONLY=y
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ PYTHON 3 DEPENDENCIES                                          │
+# └─────────────────────────────────────────────────────────────────┘
+
+# Core dependencies (you already have libffi)
+BR2_PACKAGE_LIBFFI=y
+BR2_PACKAGE_ZLIB=y
+BR2_PACKAGE_OPENSSL=y
+BR2_PACKAGE_OPENSSL_FORCE_LIBOPENSSL=y
+BR2_PACKAGE_NCURSES=y
+BR2_PACKAGE_READLINE=y
+BR2_PACKAGE_BZIP2=y
+
+# Host tools required for Python3 cross-compilation
+BR2_PACKAGE_HOST_PYTHON3=y
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ RASPBERRY PI FIRMWARE                                           │
@@ -109,8 +161,9 @@ BR2_PACKAGE_RPI_FIRMWARE_CONFIG_FILE="$(BR2_EXTERNAL_ZaraOS_PATH)/boot-configs/c
 # Use ZaraOS Pi 5 specific kernel command line
 BR2_PACKAGE_RPI_FIRMWARE_CMDLINE_FILE="$(BR2_EXTERNAL_ZaraOS_PATH)/cmdlines/cmdline_5.txt"
 
-# Always needed for hardware support
+# Always needed for hardware support - REQUIRED FOR BOOTING!
 BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB=y
+# Re-enable overlays - needed for Pi 5 hardware support and booting
 BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB_OVERLAYS=y
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ KERNEL MODULE SUPPORT                                           │
@@ -130,7 +183,7 @@ BR2_TARGET_ROOTFS_EXT2_4=y
 
 # Root filesystem size - 120MB should be sufficient for base system
 # Increase if adding many packages or large datasets
-BR2_TARGET_ROOTFS_EXT2_SIZE="120M"
+BR2_TARGET_ROOTFS_EXT2_SIZE="256M"
 
 # Don't generate tar archive (not needed for Pi deployment)
 # BR2_TARGET_ROOTFS_TAR is not set
@@ -150,3 +203,19 @@ BR2_PACKAGE_HOST_KMOD_XZ=y
 
 # MTOOLS for manipulating FAT filesystems
 BR2_PACKAGE_HOST_MTOOLS=y
+
+# Essential host tools for cross-compilation
+BR2_PACKAGE_HOST_PKGCONF=y
+BR2_PACKAGE_HOST_AUTOCONF=y
+BR2_PACKAGE_HOST_AUTOMAKE=y
+BR2_PACKAGE_HOST_LIBTOOL=y
+
+# Build system requirements for Python3
+BR2_PACKAGE_HOST_PKGCONF=y
+BR2_PACKAGE_HOST_AUTOCONF=y
+BR2_PACKAGE_HOST_AUTOMAKE=y
+BR2_PACKAGE_HOST_LIBTOOL=y
+
+# Ensure proper toolchain configuration
+BR2_TOOLCHAIN_BUILDROOT_CXX=y
+BR2_TOOLCHAIN_BUILDROOT_FORTRAN=y

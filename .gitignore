@@ -8,11 +8,6 @@ result-*
 .direnv/
 
 # Buildroot generated files
-<<<<<<< HEAD
-=======
-ZaraOS/buildroot/
-ZaraOS/buildroot
->>>>>>> develop
 **/output/
 **/.config
 **/.config.old

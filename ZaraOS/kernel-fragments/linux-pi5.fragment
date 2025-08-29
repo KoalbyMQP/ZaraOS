@@ -1,6 +1,18 @@
 CONFIG_ARM64_16K_PAGES=y
-CONFIG_ARM64_4K_PAGES=n 
+CONFIG_ARM64_4K_PAGES=n
 
 # Add Pi 5 hardware support
 CONFIG_ARCH_BCM2835=y
 CONFIG_BCM2712=y
+
+# Only keep essential filesystems
+CONFIG_EXT4_FS=y
+CONFIG_VFAT_FS=y          # Need for boot partition
+CONFIG_FAT_FS=y           # Need for boot partition
+# Disable everything else
+CONFIG_NTFS_FS=n
+CONFIG_XFS_FS=n
+CONFIG_BTRFS_FS=n
+CONFIG_F2FS_FS=n
+CONFIG_NILFS2_FS=n
+CONFIG_REISERFS_FS=n
