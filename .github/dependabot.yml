@@ -62,12 +62,32 @@ updates:
       - "docker"
       - "dev"
 
-  # Git submodules (if needed for buildroot updates)
+  # - package-ecosystem: "docker"
+  #   directory: "/infra/containers/test"
+  #   schedule:
+  #     interval: "weekly"
+  #     day: "tuesday"
+  #     time: "07:00"
+  #     timezone: "UTC"
+  #   open-pull-requests-limit: 5
+  #   reviewers:
+  #     - "KoalbyMQP"
+  #   assignees:
+  #     - "KoalbyMQP"
+  #   commit-message:
+  #     prefix: "docker"
+  #     include: "scope"
+  #   labels:
+  #     - "dependencies"
+  #     - "docker"
+  #     - "test"
+
+  # Git submodules
   - package-ecosystem: "gitsubmodule"
     directory: "/"
     schedule:
       interval: "monthly"
-      day: "1"
+      day: "monday"
       time: "06:00"
       timezone: "UTC"
     open-pull-requests-limit: 2
