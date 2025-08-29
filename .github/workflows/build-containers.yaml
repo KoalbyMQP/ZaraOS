@@ -1,4 +1,4 @@
-name: Build ZaraOS Containers
+name: Build CI/CD containers
 
 on:
   push:
