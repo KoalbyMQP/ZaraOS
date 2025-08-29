@@ -119,6 +119,12 @@ jobs:
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "Generated release tag: ${TAG}"
 
+      - name: Prepare release asset
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          # Copy and rename sdcard image with clear name
+          cp output/sdcard.img "output/zaraos-${{ steps.tag.outputs.tag }}.img"
+
       - name: Create ZaraOS Release
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: softprops/action-gh-release@v1
@@ -132,20 +138,12 @@ jobs:
 
             Flash the SD card image:
             ```
-            dd if=sdcard.img of=/dev/sdX bs=4M status=progress
+            dd if=zaraos-${{ steps.tag.outputs.tag }}.img of=/dev/sdX bs=4M status=progress
             ```
-
-            ## Asset
-
-            - `sdcard.img`: Complete SD card image
 
             **Commit:** [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
           files: |
-            output/sdcard.img
-            output/Image
-            output/rootfs.ext4
-            output/*.dtb
-            output/boot.vfat
+            output/zaraos-${{ steps.tag.outputs.tag }}.img
           draft: false
           prerelease: false
         env:
