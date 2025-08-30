@@ -113,11 +113,17 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         id: tag
         run: |
-          TIMESTAMP=$(date -u '+%Y%m%d-%H%M%S')
+          TIMESTAMP=$(date -u '+%Y%m%d')
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-8)
           TAG="v${TIMESTAMP}-${SHORT_SHA}"
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "Generated release tag: ${TAG}"
+
+      - name: Prepare release asset
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          # Copy and rename sdcard image with clear name
+          cp output/sdcard.img "output/zaraos-${{ steps.tag.outputs.tag }}.img"
 
       - name: Create ZaraOS Release
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -126,31 +132,18 @@ jobs:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: ZaraOS ${{ steps.tag.outputs.tag }}
           body: |
-            ## ZaraOS Release ${{ steps.tag.outputs.tag }}
+            **ZaraOS** - Embedded operating system for Raspberry Pi
 
-            Automated build from commit ${{ github.sha }}
+            ## Installation
 
-            ### Build Information
-            - **Branch**: main
-            - **Commit**: ${{ github.sha }}
-            - **Build Date**: ${{ github.event.head_commit.timestamp }}
-            - **Build Number**: ${{ github.run_number }}
+            Flash the SD card image:
+            ```
+            dd if=zaraos-${{ steps.tag.outputs.tag }}.img of=/dev/sdX bs=4M status=progress
+            ```
 
-            ### Included Files
-            - `sdcard.img` - Complete SD card image for Raspberry Pi
-            - `Image` - Linux kernel image
-            - `rootfs.ext4` - Root filesystem
-            - `*.dtb` - Device tree blobs for various Pi models
-            - `boot.vfat` - Boot partition image
-
-            ### Installation
-            Flash the `sdcard.img` to an SD card using tools like Raspberry Pi Imager or `dd`.
+            **Commit:** [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
           files: |
-            output/sdcard.img
-            output/Image
-            output/rootfs.ext4
-            output/*.dtb
-            output/boot.vfat
+            output/zaraos-${{ steps.tag.outputs.tag }}.img
           draft: false
           prerelease: false
         env:
