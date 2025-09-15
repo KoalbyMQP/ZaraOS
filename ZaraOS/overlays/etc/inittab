@@ -11,7 +11,7 @@
 ::sysinit:/etc/init.d/rcS
 
 # Put a getty on the serial port (Pi 5 uses ttyAMA10)
-# ttyAMA10::respawn:/sbin/getty -n -L -l /usr/bin/autologin.sh ttyAMA10 115200 vt100
+ttyAMA10::respawn:/sbin/getty -n -L -l /usr/bin/autologin.sh ttyAMA10 115200 vt100
 
 # HDMI console with auto-login
 tty1::respawn:/sbin/getty -n -L -l /usr/bin/autologin.sh tty1 0 vt100
