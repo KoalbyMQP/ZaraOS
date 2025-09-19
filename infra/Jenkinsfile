@@ -1,114 +1,68 @@
 pipeline {
     agent {
         kubernetes {
-            yaml """
-apiVersion: v1
-kind: Pod
-spec:
-  containers:
-  - name: docker
-    image: docker:24-dind
-    securityContext:
-      privileged: true
-    env:
-    - name: DOCKER_TLS_CERTDIR
-      value: ""
-    volumeMounts:
-    - name: docker-sock
-      mountPath: /var/run/docker.sock
-  volumes:
-  - name: docker-sock
-    hostPath:
-      path: /var/run/docker.sock
-      type: Socket
-"""
+            yaml '''
+                apiVersion: v1
+                kind: Pod
+                spec:
+                  containers:
+                  - name: docker
+                    image: docker:latest
+                    command:
+                    - sleep
+                    args:
+                    - 99d
+                    tty: true
+                    volumeMounts:
+                    - name: docker-sock
+                      mountPath: /var/run/docker.sock
+                  - name: jnlp
+                    image: jenkins/inbound-agent:latest
+                  volumes:
+                  - name: docker-sock
+                    hostPath:
+                      path: /var/run/docker.sock
+            '''
         }
     }
 
     environment {
-        DOCKER_HUB_REPO = 'koalby/zaraos'
-        DOCKER_REGISTRY = 'docker.io'
-        DOCKER_BUILDKIT = '1'
+        DOCKER_HUB_USER = 'koalby'
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout and Debug') {
             steps {
                 checkout scm
+                container('docker') {
+                    sh '''
+                        pwd
+                        ls -la
+                        find . -name "Dockerfile" -type f
+                    '''
+                }
             }
         }
 
-        stage('Build Dev Container') {
+        stage('Build and Push') {
             steps {
-                script {
-                    def devImage = docker.build(
-                        "${DOCKER_HUB_REPO}:dev-${env.BUILD_NUMBER}",
-                        "-f infra/containers/dev/Dockerfile ."
-                    )
+                container('docker') {
+                    script {
+                        docker.withRegistry('', 'dockerhub-credentials') {
+                            def devImage = docker.build("${DOCKER_HUB_USER}/zaraos-dev:${env.BUILD_NUMBER}", "-f infra/containers/dev/Dockerfile .")
+                            def builderImage = docker.build("${DOCKER_HUB_USER}/zaraos-builder:${env.BUILD_NUMBER}", "-f infra/containers/builder/Dockerfile .")
 
-                    env.DEV_IMAGE = devImage.id
-                }
-            }
-        }
+                            devImage.push()
+                            builderImage.push()
 
-        stage('Build Builder Container') {
-            steps {
-                script {
-                    def builderImage = docker.build(
-                        "${DOCKER_HUB_REPO}:builder-${env.BUILD_NUMBER}",
-                        "-f infra/containers/builder/Dockerfile ."
-                    )
-
-                    env.BUILDER_IMAGE = builderImage.id
-                }
-            }
-        }
-
-        stage('Test Containers') {
-            parallel {
-                stage('Test Dev Container') {
-                    steps {
-                        sh """
-                            docker run --rm ${DOCKER_HUB_REPO}:dev-${env.BUILD_NUMBER} \
-                            zsh --version
-                        """
-                    }
-                }
-                stage('Test Builder Container') {
-                    steps {
-                        sh """
-                            docker run --rm ${DOCKER_HUB_REPO}:builder-${env.BUILD_NUMBER} \
-                            gcc --version
-                        """
-                    }
-                }
-            }
-        }
-
-        stage('Push to Docker Hub') {
-            when {
-                anyOf {
-                    branch 'main'
-                    branch 'develop'
-                }
-            }
-            steps {
-                script {
-                    docker.withRegistry('https://registry-1.docker.io/v2/', 'dockerhub-credentials') {
-                        // Determine tag suffix based on branch
-                        def tagSuffix = env.BRANCH_NAME == 'main' ? 'latest' : 'nightly'
-
-                        // Push dev container
-                        def devImage = docker.image("${DOCKER_HUB_REPO}:dev-${env.BUILD_NUMBER}")
-                        devImage.push()
-                        devImage.push("dev-${tagSuffix}")
-
-                        // Push builder container
-                        def builderImage = docker.image("${DOCKER_HUB_REPO}:builder-${env.BUILD_NUMBER}")
-                        builderImage.push()
-                        builderImage.push("builder-${tagSuffix}")
-
-                        echo "Pushed containers with tag suffix: ${tagSuffix}"
+                            if (env.BRANCH_NAME == 'main') {
+                                devImage.push('latest')
+                                builderImage.push('latest')
+                            } else if (env.BRANCH_NAME == 'develop') {
+                                devImage.push('nightly')
+                                builderImage.push('nightly')
+                            }
+                        }
                     }
                 }
             }
@@ -116,18 +70,11 @@ spec:
     }
 
     post {
-        always {
-            // Clean up local images
-            sh """
-                docker rmi ${DOCKER_HUB_REPO}:dev-${env.BUILD_NUMBER} || true
-                docker rmi ${DOCKER_HUB_REPO}:builder-${env.BUILD_NUMBER} || true
-            """
-        }
         success {
             echo "Containers built and pushed successfully!"
         }
         failure {
-            echo "Pipeline failed. Check logs for details."
+            echo "Pipeline failed!"
         }
     }
 }
