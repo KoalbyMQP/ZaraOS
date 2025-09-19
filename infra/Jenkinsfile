@@ -1,0 +1,80 @@
+pipeline {
+    agent {
+        kubernetes {
+            yaml '''
+                apiVersion: v1
+                kind: Pod
+                spec:
+                  containers:
+                  - name: docker
+                    image: docker:latest
+                    command:
+                    - sleep
+                    args:
+                    - 99d
+                    tty: true
+                    volumeMounts:
+                    - name: docker-sock
+                      mountPath: /var/run/docker.sock
+                  - name: jnlp
+                    image: jenkins/inbound-agent:latest
+                  volumes:
+                  - name: docker-sock
+                    hostPath:
+                      path: /var/run/docker.sock
+            '''
+        }
+    }
+
+    environment {
+        DOCKER_HUB_USER = 'koalby'
+    }
+
+    stages {
+        stage('Checkout and Debug') {
+            steps {
+                checkout scm
+                container('docker') {
+                    sh '''
+                        pwd
+                        ls -la
+                        find . -name "Dockerfile" -type f
+                    '''
+                }
+            }
+        }
+
+        stage('Build and Push') {
+            steps {
+                container('docker') {
+                    script {
+                        docker.withRegistry('', 'dockerhub-credentials') {
+                            def devImage = docker.build("${DOCKER_HUB_USER}/zaraos-dev:${env.BUILD_NUMBER}", "-f infra/containers/dev/Dockerfile .")
+                            def builderImage = docker.build("${DOCKER_HUB_USER}/zaraos-builder:${env.BUILD_NUMBER}", "-f infra/containers/builder/Dockerfile .")
+
+                            devImage.push()
+                            builderImage.push()
+
+                            if (env.BRANCH_NAME == 'main') {
+                                devImage.push('latest')
+                                builderImage.push('latest')
+                            } else if (env.BRANCH_NAME == 'develop') {
+                                devImage.push('nightly')
+                                builderImage.push('nightly')
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Containers built and pushed successfully!"
+        }
+        failure {
+            echo "Pipeline failed!"
+        }
+    }
+}
