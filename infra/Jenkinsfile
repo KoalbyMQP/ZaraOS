@@ -1,0 +1,109 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_HUB_REPO = 'koalby/zaraos'
+        DOCKER_REGISTRY = 'docker.io'
+        DOCKER_BUILDKIT = '1'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build Dev Container') {
+            steps {
+                script {
+                    def devImage = docker.build(
+                        "${DOCKER_HUB_REPO}:dev-${env.BUILD_NUMBER}",
+                        "-f infra/containers/dev/Dockerfile ."
+                    )
+
+                    env.DEV_IMAGE = devImage.id
+                }
+            }
+        }
+
+        stage('Build Builder Container') {
+            steps {
+                script {
+                    def builderImage = docker.build(
+                        "${DOCKER_HUB_REPO}:builder-${env.BUILD_NUMBER}",
+                        "-f infra/containers/builder/Dockerfile ."
+                    )
+
+                    env.BUILDER_IMAGE = builderImage.id
+                }
+            }
+        }
+
+        stage('Test Containers') {
+            parallel {
+                stage('Test Dev Container') {
+                    steps {
+                        sh """
+                            docker run --rm ${DOCKER_HUB_REPO}:dev-${env.BUILD_NUMBER} \
+                            zsh --version
+                        """
+                    }
+                }
+                stage('Test Builder Container') {
+                    steps {
+                        sh """
+                            docker run --rm ${DOCKER_HUB_REPO}:builder-${env.BUILD_NUMBER} \
+                            gcc --version
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+            }
+            steps {
+                script {
+                    docker.withRegistry('https://registry-1.docker.io/v2/', 'dockerhub-credentials') {
+                        // Determine tag suffix based on branch
+                        def tagSuffix = env.BRANCH_NAME == 'main' ? 'latest' : 'nightly'
+
+                        // Push dev container
+                        def devImage = docker.image("${DOCKER_HUB_REPO}:dev-${env.BUILD_NUMBER}")
+                        devImage.push()
+                        devImage.push("dev-${tagSuffix}")
+
+                        // Push builder container
+                        def builderImage = docker.image("${DOCKER_HUB_REPO}:builder-${env.BUILD_NUMBER}")
+                        builderImage.push()
+                        builderImage.push("builder-${tagSuffix}")
+
+                        echo "Pushed containers with tag suffix: ${tagSuffix}"
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            // Clean up local images
+            sh """
+                docker rmi ${DOCKER_HUB_REPO}:dev-${env.BUILD_NUMBER} || true
+                docker rmi ${DOCKER_HUB_REPO}:builder-${env.BUILD_NUMBER} || true
+            """
+        }
+        success {
+            echo "Containers built and pushed successfully!"
+        }
+        failure {
+            echo "Pipeline failed. Check logs for details."
+        }
+    }
+}
