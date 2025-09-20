@@ -24,7 +24,6 @@ pipeline {
     }
 
     environment {
-        GITHUB_TOKEN = credentials('github-token')
         BUILD_DIR = '/tmp/zaraos-build'
         DL_DIR = '/tmp/zaraos-dl'
         IS_NIGHTLY = "${env.BUILD_CAUSE == 'TIMERTRIGGER'}"
@@ -35,7 +34,7 @@ pipeline {
 
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
-        timeout(time: 120, unit: 'MINUTES')  // ZaraOS builds take longer
+        timeout(time: 120, unit: 'MINUTES')
         skipDefaultCheckout()
     }
 
@@ -162,7 +161,6 @@ pipeline {
                         du -h output/*
                     '''
 
-                    // Archive artifacts for Jenkins
                     archiveArtifacts artifacts: "output/*", fingerprint: true
                 }
             }
@@ -197,7 +195,6 @@ pipeline {
                             releaseName = "ZaraOS Development ${releaseTag}"
                             isPrerelease = true
                         } else {
-                            // Main branch - stable release
                             def timestamp = new Date().format('yyyyMMdd-HHmmss')
                             def shortSha = env.GIT_COMMIT.take(8)
                             releaseTag = "v${timestamp}-${shortSha}"
@@ -209,22 +206,23 @@ pipeline {
                         env.RELEASE_NAME = releaseName
                         env.IS_PRERELEASE = isPrerelease.toString()
 
-                        sh '''
-                            echo "Creating GitHub release: ${RELEASE_NAME}"
+                        withCredentials([string(credentialsId: 'Jenkins_Github', variable: 'GITHUB_TOKEN')]) {
+                            sh '''
+                                echo "Creating GitHub release: ${RELEASE_NAME}"
 
-                            # Install GitHub CLI if not available
-                            if ! command -v gh &> /dev/null; then
-                                echo "Installing GitHub CLI..."
-                                curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg
-                                echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-                                apt update && apt install -y gh
-                            fi
+                                # Install GitHub CLI if not available
+                                if ! command -v gh &> /dev/null; then
+                                    echo "Installing GitHub CLI..."
+                                    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg
+                                    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+                                    apt update && apt install -y gh
+                                fi
 
-                            # Set up GitHub authentication
-                            echo "${GITHUB_TOKEN}" | gh auth login --with-token
+                                # Set up GitHub authentication using App credentials
+                                echo "${GITHUB_TOKEN}" | gh auth login --with-token
 
-                            # Create release body
-                            cat > release_body.md << 'EOF'
+                                # Create release body
+                                cat > release_body.md << 'EOF'
 ## ZaraOS Release ${RELEASE_TAG}
 
 Automated build from commit ${GIT_COMMIT}
@@ -258,24 +256,25 @@ Replace `/dev/sdX` with your SD card device.
 
 EOF
 
-                            # Create the release
-                            PRERELEASE_FLAG=""
-                            if [ "${IS_PRERELEASE}" = "true" ]; then
-                                PRERELEASE_FLAG="--prerelease"
-                            fi
+                                # Create the release
+                                PRERELEASE_FLAG=""
+                                if [ "${IS_PRERELEASE}" = "true" ]; then
+                                    PRERELEASE_FLAG="--prerelease"
+                                fi
 
-                            gh release create "${RELEASE_TAG}" \\
-                                --title "${RELEASE_NAME}" \\
-                                --notes-file release_body.md \\
-                                ${PRERELEASE_FLAG} \\
-                                output/sdcard.img \\
-                                output/Image \\
-                                output/rootfs.ext4 \\
-                                output/*.dtb \\
-                                output/boot.vfat
+                                gh release create "${RELEASE_TAG}" \\
+                                    --title "${RELEASE_NAME}" \\
+                                    --notes-file release_body.md \\
+                                    ${PRERELEASE_FLAG} \\
+                                    output/sdcard.img \\
+                                    output/Image \\
+                                    output/rootfs.ext4 \\
+                                    output/*.dtb \\
+                                    output/boot.vfat
 
-                            echo "Release created successfully: ${RELEASE_TAG}"
-                        '''
+                                echo "Release created successfully: ${RELEASE_TAG}"
+                            '''
+                        }
                     }
                 }
             }
@@ -295,6 +294,7 @@ EOF
                 publishChecks name: checkName, conclusion: conclusion, summary: summary
             }
         }
+
         success {
             script {
                 if (env.RELEASE_TAG) {
