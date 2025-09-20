@@ -135,6 +135,7 @@ pipeline {
                         def releaseTag
                         def releaseName
                         def isPrerelease
+                        def shortSha = env.GIT_COMMIT?.take(8) ?: scm.GIT_COMMIT?.take(8) ?: 'unknown'
 
                         if (env.IS_NIGHTLY == 'true') {
                             releaseTag = "nightly-${new Date().format('yyyyMMdd-HHmmss')}"
@@ -142,86 +143,50 @@ pipeline {
                             isPrerelease = true
                         } else if (env.IS_DEVELOP_BRANCH == 'true') {
                             def timestamp = new Date().format('yyyyMMdd-HHmmss')
-                            def shortSha = env.GIT_COMMIT.take(8)
                             releaseTag = "develop-${timestamp}-${shortSha}"
                             releaseName = "ZaraOS Development ${releaseTag}"
                             isPrerelease = true
                         } else {
                             def timestamp = new Date().format('yyyyMMdd-HHmmss')
-                            def shortSha = env.GIT_COMMIT.take(8)
                             releaseTag = "v${timestamp}-${shortSha}"
                             releaseName = "ZaraOS ${releaseTag}"
                             isPrerelease = false
                         }
 
+                        def releaseBody = """
+        ## ZaraOS Release ${releaseTag}
+
+        Automated build from commit ${env.GIT_COMMIT ?: scm.GIT_COMMIT}
+
+        ### Build Information
+        - **Branch**: ${env.BRANCH_NAME}
+        - **Commit**: ${env.GIT_COMMIT ?: scm.GIT_COMMIT}
+        - **Build Date**: ${new Date().format('yyyy-MM-dd HH:mm:ss UTC')}
+        - **Build Number**: ${env.BUILD_NUMBER}
+        - **Target**: Raspberry Pi 5 (64-bit ARM)
+
+        ### Installation
+        Flash the sdcard.img to an SD card using Raspberry Pi Imager or dd command.
+        """.trim()
+
+                        githubRelease(
+                            gitHubConnection: 'Jenkins_Github',
+                            tagName: releaseTag,
+                            releaseName: releaseName,
+                            releaseBody: releaseBody,
+                            prerelease: isPrerelease,
+                            draft: false,
+                            assets: [
+                                [path: 'output/sdcard.img'],
+                                [path: 'output/Image'],
+                                [path: 'output/rootfs.ext4'],
+                                [path: 'output/*.dtb'],
+                                [path: 'output/boot.vfat']
+                            ]
+                        )
+
                         env.RELEASE_TAG = releaseTag
-                        env.RELEASE_NAME = releaseName
-                        env.IS_PRERELEASE = isPrerelease.toString()
-
-                        withCredentials([string(credentialsId: 'Jenkins_Github', variable: 'GITHUB_TOKEN')]) {
-                            sh '''
-                                echo "Creating GitHub release: ${RELEASE_NAME}"
-
-                                echo "${GITHUB_TOKEN}" | gh auth login --with-token
-
-                                # Check if release already exists
-                                if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
-                                    echo "Release ${RELEASE_TAG} already exists, skipping"
-                                    exit 0
-                                fi
-
-                                cat > release_body.md << 'EOF'
-## ZaraOS Release ${RELEASE_TAG}
-
-Automated build from commit ${GIT_COMMIT}
-
-### Build Information
-- **Branch**: ${BRANCH_NAME}
-- **Commit**: ${GIT_COMMIT}
-- **Build Date**: $(date -u)
-- **Build Number**: ${BUILD_NUMBER}
-- **Target**: Raspberry Pi 5 (64-bit ARM)
-
-### Included Files
-- `sdcard.img` - Complete SD card image for Raspberry Pi 5
-- `Image` - Linux kernel image (64-bit ARM)
-- `rootfs.ext4` - Root filesystem
-- `*.dtb` - Device tree blobs for Raspberry Pi models
-- `boot.vfat` - Boot partition image
-
-### Installation
-Flash the `sdcard.img` to an SD card using tools like Raspberry Pi Imager or `dd`:
-```bash
-sudo dd if=sdcard.img of=/dev/sdX bs=4M status=progress
-```
-Replace `/dev/sdX` with your SD card device.
-
-### Changes
-- Based on Buildroot with ZaraOS customizations
-- Python 3 runtime included
-- Optimized for robotics applications
-- Auto-login enabled for development
-
-EOF
-
-                                PRERELEASE_FLAG=""
-                                if [ "${IS_PRERELEASE}" = "true" ]; then
-                                    PRERELEASE_FLAG="--prerelease"
-                                fi
-
-                                gh release create "${RELEASE_TAG}" \\
-                                    --title "${RELEASE_NAME}" \\
-                                    --notes-file release_body.md \\
-                                    ${PRERELEASE_FLAG} \\
-                                    output/sdcard.img \\
-                                    output/Image \\
-                                    output/rootfs.ext4 \\
-                                    output/*.dtb \\
-                                    output/boot.vfat
-
-                                echo "Release created successfully: ${RELEASE_TAG}"
-                            '''
-                        }
+                        echo "Release created: ${releaseName}"
                     }
                 }
             }
