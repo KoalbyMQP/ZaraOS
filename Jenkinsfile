@@ -282,7 +282,6 @@ EOF
         }
     }
 
-    post {
         always {
             script {
                 def checkName = env.IS_NIGHTLY == 'true' ? 'ZaraOS Nightly Build' :
@@ -294,15 +293,7 @@ EOF
 
                 publishChecks name: checkName, conclusion: conclusion, summary: summary
             }
-
-            container('zaraos-builder') {
-                sh '''
-                    echo "Cleaning up build directories"
-                    rm -rf ${BUILD_DIR} ${DL_DIR} || true
-                '''
-            }
         }
-
         success {
             script {
                 if (env.RELEASE_TAG) {
