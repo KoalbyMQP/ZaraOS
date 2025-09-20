@@ -7,7 +7,7 @@ pipeline {
                 spec:
                   containers:
                   - name: zaraos-builder
-                    image: koalby/zaraos-builder:latest
+                    image: koalby/zaraos-builder:nightly
                     command:
                     - sleep
                     args:
