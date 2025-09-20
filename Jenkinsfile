@@ -133,6 +133,7 @@ pipeline {
                 container('zaraos-builder') {
                     script {
                         // Get commit hash from git command
+                        sh 'git config --global --add safe.directory "*"'
                         def commitHash = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
                         
                         def releaseTag
