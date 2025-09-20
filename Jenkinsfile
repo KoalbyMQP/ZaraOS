@@ -282,6 +282,7 @@ EOF
         }
     }
 
+    post {
         always {
             script {
                 def checkName = env.IS_NIGHTLY == 'true' ? 'ZaraOS Nightly Build' :
