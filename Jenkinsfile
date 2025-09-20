@@ -164,6 +164,12 @@ pipeline {
 
                                 echo "${GITHUB_TOKEN}" | gh auth login --with-token
 
+                                # Check if release already exists
+                                if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+                                    echo "Release ${RELEASE_TAG} already exists, skipping"
+                                    exit 0
+                                fi
+
                                 cat > release_body.md << 'EOF'
 ## ZaraOS Release ${RELEASE_TAG}
 
