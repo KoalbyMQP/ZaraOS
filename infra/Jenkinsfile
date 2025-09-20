@@ -31,14 +31,20 @@ pipeline {
     }
 
     stages {
-        stage('Checkout and Debug') {
+        stage('Checkout and Initialize Submodules') {
             steps {
                 checkout scm
                 container('docker') {
                     sh '''
-                        pwd
-                        ls -la
-                        find . -name "Dockerfile" -type f
+                        # Fix git ownership issue
+                        git config --global --add safe.directory /home/jenkins/agent/workspace/ZaraOS-containers_develop
+
+                        # Initialize git submodules
+                        git submodule update --init --recursive
+
+                        # Verify buildroot is now populated
+                        ls -la ZaraOS/buildroot/
+                        echo "Buildroot files count: $(find ZaraOS/buildroot -type f | wc -l)"
                     '''
                 }
             }
