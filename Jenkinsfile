@@ -13,6 +13,8 @@ pipeline {
                     args:
                     - 99d
                     tty: true
+                    securityContext:
+                      runAsUser: 0
                   - name: jnlp
                     image: jenkins/inbound-agent:latest
             '''
@@ -20,7 +22,7 @@ pipeline {
     }
 
     triggers {
-        cron('0 3 * * *')  // Nightly build at 3 AM
+        cron('0 3 * * *')
     }
 
     environment {
@@ -54,37 +56,12 @@ pipeline {
                 container('zaraos-builder') {
                     sh '''
                         echo "ZaraOS Build Environment Ready"
-                        echo "Workspace: $(pwd)"
-                        echo "Available space: $(df -h . | tail -1)"
-
-                        # Verify buildroot is available
+                        whoami
+                        pwd
                         ls -la /opt/buildroot/
-
-                        # Clean any previous builds
                         rm -rf ${BUILD_DIR} ${DL_DIR} output || true
                         mkdir -p ${BUILD_DIR} ${DL_DIR} output
                     '''
-                }
-            }
-        }
-
-        stage('Prepare Nightly Version') {
-            when {
-                environment name: 'IS_NIGHTLY', value: 'true'
-            }
-            steps {
-                container('zaraos-builder') {
-                    script {
-                        def timestamp = new Date().format('yyyyMMddHHmm')
-                        env.ZARAOS_VERSION = "nightly-${timestamp}"
-
-                        sh """
-                            echo "Building nightly version: ${env.ZARAOS_VERSION}"
-
-                            # Update version in zaraos-release file
-                            sed -i 's/Build System: Container-based CI\\/CD/Build System: Nightly ${env.ZARAOS_VERSION}/' ZaraOS/overlays/etc/zaraos-release
-                        """
-                    }
                 }
             }
         }
@@ -93,16 +70,11 @@ pipeline {
             steps {
                 container('zaraos-builder') {
                     sh '''
-                        echo "Configuring ZaraOS build"
-
-                        # Configure buildroot with ZaraOS external tree
                         make -C /opt/buildroot \\
                             O="${BUILD_DIR}" \\
                             BR2_DL_DIR="${DL_DIR}" \\
                             BR2_EXTERNAL="$(pwd)/ZaraOS" \\
                             zaraos_pi5_defconfig
-
-                        echo "Configuration complete"
                     '''
                 }
             }
@@ -112,25 +84,15 @@ pipeline {
             steps {
                 container('zaraos-builder') {
                     sh '''
-                        echo "Building ZaraOS for Raspberry Pi 5"
-                        echo "This may take 30-60 minutes..."
-
-                        # Get CPU count for parallel build
                         CPU_COUNT=$(nproc)
-                        JOBS=$(echo "$CPU_COUNT * 0.75" | bc | cut -d. -f1)
-                        JOBS=$(( JOBS < 2 ? 2 : JOBS ))
-                        JOBS=$(( JOBS > 8 ? 8 : JOBS ))
-                        echo "Using $JOBS parallel jobs (CPU count: $CPU_COUNT)"
+                        JOBS=$(( CPU_COUNT < 8 ? CPU_COUNT : 8 ))
+                        echo "Using $JOBS parallel jobs"
 
-                        # Build ZaraOS
                         make -C /opt/buildroot \\
                             O="${BUILD_DIR}" \\
                             BR2_DL_DIR="${DL_DIR}" \\
                             BR2_EXTERNAL="$(pwd)/ZaraOS" \\
-                            -j${JOBS} \\
-                            V=1
-
-                        echo "Build completed successfully"
+                            -j${JOBS}
                     '''
                 }
             }
@@ -140,24 +102,13 @@ pipeline {
             steps {
                 container('zaraos-builder') {
                     sh '''
-                        echo "Packaging ZaraOS artifacts"
-
-                        # Verify build artifacts exist
                         if [[ ! -f "${BUILD_DIR}/images/sdcard.img" ]]; then
                             echo "ERROR: sdcard.img not found!"
                             exit 1
                         fi
 
-                        # Copy all artifacts to output directory
-                        echo "Copying build artifacts..."
                         cp -r "${BUILD_DIR}/images"/* output/
-
-                        # List what we built
-                        echo "Built artifacts:"
                         ls -la output/
-
-                        # Calculate file sizes
-                        echo "Artifact sizes:"
                         du -h output/*
                     '''
 
@@ -185,7 +136,7 @@ pipeline {
                         def isPrerelease
 
                         if (env.IS_NIGHTLY == 'true') {
-                            releaseTag = env.ZARAOS_VERSION ?: "nightly-${new Date().format('yyyyMMdd-HHmmss')}"
+                            releaseTag = "nightly-${new Date().format('yyyyMMdd-HHmmss')}"
                             releaseName = "ZaraOS Nightly ${releaseTag}"
                             isPrerelease = true
                         } else if (env.IS_DEVELOP_BRANCH == 'true') {
@@ -210,18 +161,8 @@ pipeline {
                             sh '''
                                 echo "Creating GitHub release: ${RELEASE_NAME}"
 
-                                # Install GitHub CLI if not available
-                                if ! command -v gh &> /dev/null; then
-                                    echo "Installing GitHub CLI..."
-                                    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg
-                                    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-                                    apt update && apt install -y gh
-                                fi
-
-                                # Set up GitHub authentication using App credentials
                                 echo "${GITHUB_TOKEN}" | gh auth login --with-token
 
-                                # Create release body
                                 cat > release_body.md << 'EOF'
 ## ZaraOS Release ${RELEASE_TAG}
 
@@ -256,7 +197,6 @@ Replace `/dev/sdX` with your SD card device.
 
 EOF
 
-                                # Create the release
                                 PRERELEASE_FLAG=""
                                 if [ "${IS_PRERELEASE}" = "true" ]; then
                                     PRERELEASE_FLAG="--prerelease"

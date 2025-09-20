@@ -3,37 +3,50 @@ set -e
 
 echo "Building ZaraOS"
 
-# For GitHub Actions runner - we're in the repo root, ZaraOS subdir contains the external tree
-WORKSPACE_PATH="$(pwd)"
-EXTERNAL_PATH="$(pwd)/ZaraOS"
+WORKSPACE_PATH="${WORKSPACE_PATH:-$(pwd)}"
+EXTERNAL_PATH="${EXTERNAL_PATH:-${WORKSPACE_PATH}/ZaraOS}"
+BUILD_DIR="${BUILD_DIR:-/tmp/zaraos-build}"
+DL_DIR="${DL_DIR:-/tmp/zaraos-dl}"
+OUTPUT_DIR="${OUTPUT_DIR:-${WORKSPACE_PATH}/output}"
+DEFCONFIG="${DEFCONFIG:-zaraos_pi5_defconfig}"
+JOBS="${JOBS:-$(nproc)}"
 
-echo "Using workspace: $WORKSPACE_PATH"
-echo "Using external path: $EXTERNAL_PATH"
+echo "Workspace: $WORKSPACE_PATH"
+echo "External: $EXTERNAL_PATH"
+echo "Build dir: $BUILD_DIR"
+echo "Jobs: $JOBS"
 
-BUILD_DIR="/tmp/zaraos-build"
-DL_DIR="/tmp/zaraos-dl"
-mkdir -p "$BUILD_DIR" "$DL_DIR"
-
-make -C /opt/buildroot \
-    O="$BUILD_DIR" \
-    BR2_DL_DIR="$DL_DIR" \
-    BR2_EXTERNAL="$EXTERNAL_PATH" \
-    zaraos_pi5_defconfig
-
-make -C /opt/buildroot \
-    O="$BUILD_DIR" \
-    BR2_DL_DIR="$DL_DIR" \
-    BR2_EXTERNAL="$EXTERNAL_PATH" \
-    -j2
-
-echo "Copying artifacts..."
-mkdir -p "$WORKSPACE_PATH/output"
-
-# Copy all images (final artifacts)
-if [ -d "$BUILD_DIR/images" ]; then
-    echo "Copying final images..."
-    cp -r "$BUILD_DIR/images"/* "$WORKSPACE_PATH/output/"
+if [[ ! -d "/opt/buildroot" ]]; then
+    echo "ERROR: Buildroot not found"
+    exit 1
 fi
 
-echo "Build complete!"
-echo "Final images available in: $WORKSPACE_PATH/output/"
+if [[ ! -d "$EXTERNAL_PATH" ]]; then
+    echo "ERROR: ZaraOS external tree not found"
+    exit 1
+fi
+
+rm -rf "$BUILD_DIR" "$DL_DIR" "$OUTPUT_DIR" || true
+mkdir -p "$BUILD_DIR" "$DL_DIR" "$OUTPUT_DIR"
+
+echo "Configuring build..."
+make -C /opt/buildroot \
+    O="$BUILD_DIR" \
+    BR2_DL_DIR="$DL_DIR" \
+    BR2_EXTERNAL="$EXTERNAL_PATH" \
+    "$DEFCONFIG"
+
+echo "Building..."
+make -C /opt/buildroot \
+    O="$BUILD_DIR" \
+    BR2_DL_DIR="$DL_DIR" \
+    BR2_EXTERNAL="$EXTERNAL_PATH" \
+    -j"$JOBS"
+
+echo "Copying artifacts..."
+if [ -d "$BUILD_DIR/images" ]; then
+    cp -r "$BUILD_DIR/images"/* "$OUTPUT_DIR/"
+fi
+
+echo "Build complete"
+ls -la "$OUTPUT_DIR/"
