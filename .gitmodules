@@ -2,3 +2,6 @@
 	path = ZaraOS/buildroot
 	url = https://github.com/buildroot/buildroot.git
 	branch = 2025.02.x
+[submodule "pkgm/vendor/firecracker-containerd"]
+	path = pkgm/vendor/firecracker-containerd
+	url = https://github.com/firecracker-microvm/firecracker-containerd.git

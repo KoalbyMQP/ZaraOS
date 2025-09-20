@@ -1,8 +1,9 @@
-package microvm
+package vm
 
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/containerd/containerd"
@@ -13,23 +14,22 @@ import (
 )
 
 const (
-	defaultNamespace = "firecracker-manager"
-	defaultRuntime   = "aws.firecracker"
-	socketPath       = "/run/containerd/containerd.sock"
+	defaultNamespace = "firecracker-all"
+	runtimeName      = "aws.firecracker"
 )
 
 type Manager struct {
 	client *containerd.Client
-	vms    map[string]*MicroVM
 }
 
-type MicroVM struct {
-	id        string
-	container containerd.Container
-	task      containerd.Task
+type VMInfo struct {
+	ID     string
+	Status string
 }
 
-func NewManager() (*Manager, error) {
+func NewManager(dataDir string) (*Manager, error) {
+	socketPath := filepath.Join(dataDir, "containerd.sock")
+
 	client, err := containerd.New(socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to containerd: %w", err)
@@ -37,25 +37,25 @@ func NewManager() (*Manager, error) {
 
 	return &Manager{
 		client: client,
-		vms:    make(map[string]*MicroVM),
 	}, nil
 }
 
-func (m *Manager) Create(ctx context.Context, vmID, image string) (*MicroVM, error) {
+func (m *Manager) Create(ctx context.Context, vmID, image string) error {
 	ctx = namespaces.WithNamespace(ctx, defaultNamespace)
 
-	// Check if VM already exists
-	if _, exists := m.vms[vmID]; exists {
-		return nil, fmt.Errorf("microVM %s already exists", vmID)
+	// Check if container already exists
+	_, err := m.client.LoadContainer(ctx, vmID)
+	if err == nil {
+		return fmt.Errorf("VM %s already exists", vmID)
 	}
 
-	// Pull image if not present
+	// Pull image
 	img, err := m.client.Pull(ctx, image, containerd.WithPullUnpack)
 	if err != nil {
-		return nil, fmt.Errorf("failed to pull image %s: %w", image, err)
+		return fmt.Errorf("failed to pull image %s: %w", image, err)
 	}
 
-	// Create container with firecracker runtime
+	// Create container
 	container, err := m.client.NewContainer(
 		ctx,
 		vmID,
@@ -63,20 +63,20 @@ func (m *Manager) Create(ctx context.Context, vmID, image string) (*MicroVM, err
 		containerd.WithNewSnapshot(vmID+"-snapshot", img),
 		containerd.WithNewSpec(
 			oci.WithImageConfig(img),
-			oci.WithProcessArgs("/bin/sh", "-c", "echo 'MicroVM started'; sleep 300"),
-			withFirecrackerRuntime(),
+			oci.WithProcessArgs("/bin/sh", "-c", "echo 'VM started'; sleep 300"),
+			withFirecrackerConfig(),
 		),
-		containerd.WithRuntime(defaultRuntime, nil),
+		containerd.WithRuntime(runtimeName, nil),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create container: %w", err)
+		return fmt.Errorf("failed to create container: %w", err)
 	}
 
 	// Create and start task
 	task, err := container.NewTask(ctx, cio.NewCreator(cio.WithStdio))
 	if err != nil {
 		container.Delete(ctx, containerd.WithSnapshotCleanup)
-		return nil, fmt.Errorf("failed to create task: %w", err)
+		return fmt.Errorf("failed to create task: %w", err)
 	}
 
 	// Start the task
@@ -84,36 +84,32 @@ func (m *Manager) Create(ctx context.Context, vmID, image string) (*MicroVM, err
 	if err != nil {
 		task.Delete(ctx)
 		container.Delete(ctx, containerd.WithSnapshotCleanup)
-		return nil, fmt.Errorf("failed to start task: %w", err)
+		return fmt.Errorf("failed to start task: %w", err)
 	}
 
-	vm := &MicroVM{
-		id:        vmID,
-		container: container,
-		task:      task,
-	}
-
-	m.vms[vmID] = vm
-	return vm, nil
+	return nil
 }
 
 func (m *Manager) Destroy(ctx context.Context, vmID string) error {
 	ctx = namespaces.WithNamespace(ctx, defaultNamespace)
 
-	vm, exists := m.vms[vmID]
-	if !exists {
-		return fmt.Errorf("microVM %s not found", vmID)
+	// Load container
+	container, err := m.client.LoadContainer(ctx, vmID)
+	if err != nil {
+		return fmt.Errorf("VM %s not found: %w", vmID, err)
 	}
 
-	// Kill task
-	if vm.task != nil {
-		err := vm.task.Kill(ctx, 9)
+	// Get task
+	task, err := container.Task(ctx, nil)
+	if err == nil {
+		// Kill task
+		err = task.Kill(ctx, 9)
 		if err != nil {
 			return fmt.Errorf("failed to kill task: %w", err)
 		}
 
 		// Wait for task to exit
-		exitCh, err := vm.task.Wait(ctx)
+		exitCh, err := task.Wait(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to wait for task: %w", err)
 		}
@@ -125,60 +121,72 @@ func (m *Manager) Destroy(ctx context.Context, vmID string) error {
 		}
 
 		// Delete task
-		_, err = vm.task.Delete(ctx)
+		_, err = task.Delete(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to delete task: %w", err)
 		}
 	}
 
 	// Delete container
-	if vm.container != nil {
-		err := vm.container.Delete(ctx, containerd.WithSnapshotCleanup)
-		if err != nil {
-			return fmt.Errorf("failed to delete container: %w", err)
-		}
+	err = container.Delete(ctx, containerd.WithSnapshotCleanup)
+	if err != nil {
+		return fmt.Errorf("failed to delete container: %w", err)
 	}
 
-	delete(m.vms, vmID)
 	return nil
 }
 
-func (m *Manager) Close() error {
-	return m.client.Close()
-}
+func (m *Manager) List(ctx context.Context) ([]VMInfo, error) {
+	ctx = namespaces.WithNamespace(ctx, defaultNamespace)
 
-func (vm *MicroVM) ID() string {
-	return vm.id
-}
-
-func (vm *MicroVM) Status(ctx context.Context) (string, error) {
-	if vm.task == nil {
-		return "stopped", nil
-	}
-
-	status, err := vm.task.Status(ctx)
+	containers, err := m.client.Containers(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to get task status: %w", err)
+		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 
-	return string(status.Status), nil
+	var vms []VMInfo
+	for _, container := range containers {
+		status := "stopped"
+
+		task, err := container.Task(ctx, nil)
+		if err == nil {
+			taskStatus, err := task.Status(ctx)
+			if err == nil {
+				status = string(taskStatus.Status)
+			}
+		}
+
+		vms = append(vms, VMInfo{
+			ID:     container.ID(),
+			Status: status,
+		})
+	}
+
+	return vms, nil
 }
 
-func withFirecrackerRuntime() oci.SpecOpts {
+func (m *Manager) Close() error {
+	if m.client != nil {
+		return m.client.Close()
+	}
+	return nil
+}
+
+func withFirecrackerConfig() oci.SpecOpts {
 	return func(ctx context.Context, client oci.Client, container *containerd.Container, s *specs.Spec) error {
-		// Basic firecracker-specific configuration
+		// Configure for firecracker
 		if s.Linux == nil {
 			s.Linux = &specs.Linux{}
 		}
 
-		// Set memory limit (128MB for testing)
+		// Set memory limit (128MB)
 		if s.Linux.Resources == nil {
 			s.Linux.Resources = &specs.LinuxResources{}
 		}
 		if s.Linux.Resources.Memory == nil {
 			s.Linux.Resources.Memory = &specs.LinuxMemory{}
 		}
-		limit := int64(128 * 1024 * 1024) // 128MB
+		limit := int64(128 * 1024 * 1024)
 		s.Linux.Resources.Memory.Limit = &limit
 
 		return nil
