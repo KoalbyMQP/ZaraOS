@@ -178,13 +178,15 @@ pipeline {
                             name: releaseName,
                             bodyFile: 'release_body.md',
                             prerelease: isPrerelease,
-                            draft: false
+                            draft: false,
+                            commitish: env.GIT_COMMIT
                         )
 
                         // Upload assets
                         uploadGithubReleaseAsset(
                             credentialId: 'Jenkins_Github',
                             repository: 'KoalbyMQP/ZaraOS',
+                            commitish: env.GIT_COMMIT,
                             tagName: releaseTag,
                             uploadAssets: [
                                 [filePath: 'output/sdcard.img']
