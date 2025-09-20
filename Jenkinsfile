@@ -161,7 +161,7 @@ pipeline {
         ### Build Information
         - **Branch**: ${env.BRANCH_NAME}
         - **Commit**: ${env.GIT_COMMIT ?: scm.GIT_COMMIT}
-        - **Build Date**: ${new Date().format('yyyy-MM-dd HH:mm:ss UTC')}
+        - **Build Date**: ${new Date().format('yyyy-MM-dd HH:mm:ss')}
         - **Build Number**: ${env.BUILD_NUMBER}
         - **Target**: Raspberry Pi 5 (64-bit ARM)
 
