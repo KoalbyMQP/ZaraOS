@@ -169,20 +169,21 @@ pipeline {
         Flash the sdcard.img to an SD card using Raspberry Pi Imager or dd command.
         """.trim()
 
-                        githubRelease(
+                        createGitHubRelease(
                             gitHubConnection: 'Jenkins_Github',
                             tagName: releaseTag,
                             releaseName: releaseName,
                             releaseBody: releaseBody,
                             prerelease: isPrerelease,
-                            draft: false,
-                            assets: [
-                                [path: 'output/sdcard.img'],
-                                [path: 'output/Image'],
-                                [path: 'output/rootfs.ext4'],
-                                [path: 'output/*.dtb'],
-                                [path: 'output/boot.vfat']
-                            ]
+                            draft: false
+                        )
+
+                        // Upload assets separately
+                        uploadGithubReleaseAsset(
+                            gitHubConnection: 'Jenkins_Github',
+                            tagName: releaseTag,
+                            assetName: 'sdcard.img',
+                            filePath: 'output/sdcard.img'
                         )
 
                         env.RELEASE_TAG = releaseTag
