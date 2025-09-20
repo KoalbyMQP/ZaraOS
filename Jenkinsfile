@@ -67,56 +67,56 @@ pipeline {
             }
         }
 
-        // stage('Configure Build') {
-        //     steps {
-        //         container('zaraos-builder') {
-        //             sh '''
-        //                 make -C /opt/buildroot \\
-        //                     O="${BUILD_DIR}" \\
-        //                     BR2_DL_DIR="${DL_DIR}" \\
-        //                     BR2_EXTERNAL="$(pwd)/ZaraOS" \\
-        //                     zaraos_pi5_defconfig
-        //             '''
-        //         }
-        //     }
-        // }
+        stage('Configure Build') {
+            steps {
+                container('zaraos-builder') {
+                    sh '''
+                        make -C /opt/buildroot \\
+                            O="${BUILD_DIR}" \\
+                            BR2_DL_DIR="${DL_DIR}" \\
+                            BR2_EXTERNAL="$(pwd)/ZaraOS" \\
+                            zaraos_pi5_defconfig
+                    '''
+                }
+            }
+        }
 
-        // stage('Build ZaraOS') {
-        //     steps {
-        //         container('zaraos-builder') {
-        //             sh '''
-        //                 CPU_COUNT=$(nproc)
-        //                 JOBS=$(( CPU_COUNT < 8 ? CPU_COUNT : 8 ))
-        //                 echo "Using $JOBS parallel jobs"
+        stage('Build ZaraOS') {
+            steps {
+                container('zaraos-builder') {
+                    sh '''
+                        CPU_COUNT=$(nproc)
+                        JOBS=$(( CPU_COUNT < 8 ? CPU_COUNT : 8 ))
+                        echo "Using $JOBS parallel jobs"
 
-        //                 make -C /opt/buildroot \\
-        //                     O="${BUILD_DIR}" \\
-        //                     BR2_DL_DIR="${DL_DIR}" \\
-        //                     BR2_EXTERNAL="$(pwd)/ZaraOS" \\
-        //                     -j${JOBS}
-        //             '''
-        //         }
-        //     }
-        // }
+                        make -C /opt/buildroot \\
+                            O="${BUILD_DIR}" \\
+                            BR2_DL_DIR="${DL_DIR}" \\
+                            BR2_EXTERNAL="$(pwd)/ZaraOS" \\
+                            -j${JOBS}
+                    '''
+                }
+            }
+        }
 
-        // stage('Package Artifacts') {
-        //     steps {
-        //         container('zaraos-builder') {
-        //             sh '''
-        //                 if [[ ! -f "${BUILD_DIR}/images/sdcard.img" ]]; then
-        //                     echo "ERROR: sdcard.img not found!"
-        //                     exit 1
-        //                 fi
+        stage('Package Artifacts') {
+            steps {
+                container('zaraos-builder') {
+                    sh '''
+                        if [[ ! -f "${BUILD_DIR}/images/sdcard.img" ]]; then
+                            echo "ERROR: sdcard.img not found!"
+                            exit 1
+                        fi
 
-        //                 cp -r "${BUILD_DIR}/images"/* output/
-        //                 ls -la output/
-        //                 du -h output/*
-        //             '''
+                        cp -r "${BUILD_DIR}/images"/* output/
+                        ls -la output/
+                        du -h output/*
+                    '''
 
-        //             archiveArtifacts artifacts: "output/*", fingerprint: true
-        //         }
-        //     }
-        // }
+                    archiveArtifacts artifacts: "output/*", fingerprint: true
+                }
+            }
+        }
 
         stage('Create GitHub Release') {
             when {
