@@ -7,7 +7,8 @@ pipeline {
                 spec:
                   containers:
                   - name: zaraos-builder
-                    image: koalby/zaraos-builder:nightly
+                    image: koalby/zaraos-builder:nightly # FIXME: change this once we are in prod
+                    imagePullPolicy: Always # FIXME: change this once we are in prod
                     command:
                     - sleep
                     args:
