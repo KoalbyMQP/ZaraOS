@@ -36,6 +36,9 @@ pipeline {
                 checkout scm
                 container('docker') {
                     sh '''
+                        # Fix git ownership issue
+                        git config --global --add safe.directory /home/jenkins/agent/workspace/ZaraOS-containers_develop
+
                         # Initialize git submodules
                         git submodule update --init --recursive
 
