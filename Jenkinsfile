@@ -177,7 +177,7 @@ pipeline {
                         writeFile file: 'release_body.md', text: releaseBody
         
                         createGitHubRelease(
-                            credentialId: 'Jenkins_Github',
+                            credentialId: 'github_personal_token',
                             repository: 'KoalbyMQP/ZaraOS',
                             tag: releaseTag,
                             name: releaseName,
@@ -189,7 +189,7 @@ pipeline {
         
                         // Upload assets
                         uploadGithubReleaseAsset(
-                            credentialId: 'Jenkins_Github',
+                            credentialId: 'github_personal_token',
                             repository: 'KoalbyMQP/ZaraOS',
                             tagName: releaseTag,
                             commitish: commitHash,  // Use the retrieved commit hash
