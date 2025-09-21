@@ -132,11 +132,16 @@ pipeline {
             steps {
                 container('zaraos-builder') {
                     script {
+                        // Get commit hash from git command
+                        sh 'git config --global --add safe.directory "*"'
+                        def commitHash = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+                        
                         def releaseTag
                         def releaseName
                         def isPrerelease
-                        def shortSha = env.GIT_COMMIT?.take(8) ?: scm.GIT_COMMIT?.take(8) ?: 'unknown'
-
+                        def shortSha = commitHash.take(8)
+        
+                        // Rest of your existing logic...
                         if (env.IS_NIGHTLY == 'true') {
                             releaseTag = "nightly-${new Date().format('yyyyMMdd-HHmmss')}"
                             releaseName = "ZaraOS Nightly ${releaseTag}"
@@ -152,45 +157,47 @@ pipeline {
                             releaseName = "ZaraOS ${releaseTag}"
                             isPrerelease = false
                         }
-
+        
                         def releaseBody = """
         ## ZaraOS Release ${releaseTag}
-
-        Automated build from commit ${env.GIT_COMMIT ?: scm.GIT_COMMIT}
-
+        
+        Automated build from commit ${commitHash}
+        
         ### Build Information
         - **Branch**: ${env.BRANCH_NAME}
-        - **Commit**: ${env.GIT_COMMIT ?: scm.GIT_COMMIT}
+        - **Commit**: ${commitHash}
         - **Build Date**: ${new Date().format('yyyy-MM-dd HH:mm:ss')}
         - **Build Number**: ${env.BUILD_NUMBER}
         - **Target**: Raspberry Pi 5 (64-bit ARM)
-
+        
         ### Installation
         Flash the sdcard.img to an SD card using Raspberry Pi Imager or dd command.
-        """.trim()
-
+                        """.trim()
+        
                         writeFile file: 'release_body.md', text: releaseBody
-
+        
                         createGitHubRelease(
-                            credentialId: 'Jenkins_Github',
-                            repository: env.GIT_URL.replaceAll(/.*github\.com[\/:]/, '').replaceAll(/\.git$/, ''),
+                            credentialId: 'github_personal_token',
+                            repository: 'KoalbyMQP/ZaraOS',
                             tag: releaseTag,
                             name: releaseName,
                             bodyFile: 'release_body.md',
                             prerelease: isPrerelease,
-                            draft: false
+                            draft: false,
+                            commitish: commitHash  // Use the retrieved commit hash
                         )
-
+        
                         // Upload assets
                         uploadGithubReleaseAsset(
-                            credentialId: 'Jenkins_Github',
-                            repository: env.GIT_URL.replaceAll(/.*github\.com[\/:]/, '').replaceAll(/\.git$/, ''),
+                            credentialId: 'github_personal_token',
+                            repository: 'KoalbyMQP/ZaraOS',
                             tagName: releaseTag,
+                            commitish: commitHash,  // Use the retrieved commit hash
                             uploadAssets: [
                                 [filePath: 'output/sdcard.img']
                             ]
                         )
-
+        
                         env.RELEASE_TAG = releaseTag
                         echo "Release created: ${releaseName}"
                     }
