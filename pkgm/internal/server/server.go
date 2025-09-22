@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"firecracker-all/internal/assets"
-	"firecracker-all/internal/runtime"
+	"firecracker-manager/internal/assets"
+	"firecracker-manager/internal/runtime"
 
 	"github.com/containerd/containerd/services/server"
 	"github.com/containerd/containerd/sys"

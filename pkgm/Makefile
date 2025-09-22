@@ -1,78 +1,42 @@
-.PHONY: build clean test deps assets build-pi
+.PHONY: build clean deps format setup-firecracker
 
-BINARY_NAME=firecracker-all
+BINARY_NAME=pkgmngr
 BUILD_DIR=./bin
-ASSETS_DIR=./internal/assets
 
-build: assets
+build:
 	@echo "Building $(BINARY_NAME)..."
 	@mkdir -p $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/firecracker-all
+	go build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/manager
 
-build-pi: assets
-	@echo "Building $(BINARY_NAME) for Raspberry Pi..."
-	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=arm64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-arm64 ./cmd/firecracker-all
-
-assets:
-	@echo "Downloading assets..."
-	@mkdir -p $(ASSETS_DIR)
-	@echo "Downloading firecracker binary..."
-	@if [ ! -f $(ASSETS_DIR)/firecracker ]; then \
-		curl -L -o /tmp/firecracker.tgz https://github.com/firecracker-microvm/firecracker/releases/download/v1.4.1/firecracker-v1.4.1-x86_64.tgz && \
-		tar -xzf /tmp/firecracker.tgz -C /tmp && \
-		cp /tmp/release-v1.4.1-x86_64/firecracker-v1.4.1-x86_64 $(ASSETS_DIR)/firecracker && \
-		rm -rf /tmp/firecracker.tgz /tmp/release-v1.4.1-x86_64; \
+# Download firecracker binary and setup basic resources
+setup-firecracker:
+	@echo "Setting up firecracker..."
+	@sudo mkdir -p /var/lib/firecracker
+	@if [ ! -f /usr/local/bin/firecracker ]; then \
+		curl -L -o /tmp/firecracker https://github.com/firecracker-microvm/firecracker/releases/download/v1.10.0/firecracker-v1.10.0-x86_64 && \
+		sudo cp /tmp/firecracker /usr/local/bin/firecracker && \
+		sudo chmod +x /usr/local/bin/firecracker && \
+		rm /tmp/firecracker; \
 	fi
-	@echo "Downloading firecracker-containerd shim..."
-	@if [ ! -f $(ASSETS_DIR)/containerd-shim-aws-firecracker ]; then \
-		curl -L -o /tmp/firecracker-containerd.tgz https://github.com/firecracker-microvm/firecracker-containerd/releases/download/v1.7.0/firecracker-containerd-1.7.0-linux-amd64.tar.gz && \
-		tar -xzf /tmp/firecracker-containerd.tgz -C /tmp && \
-		cp /tmp/bin/containerd-shim-aws-firecracker $(ASSETS_DIR)/ && \
-		rm -rf /tmp/firecracker-containerd.tgz /tmp/bin; \
-	fi
-
-assets-pi:
-	@echo "Downloading ARM64 assets for Pi..."
-	@mkdir -p $(ASSETS_DIR)
-	@echo "Downloading firecracker binary for ARM64..."
-	@if [ ! -f $(ASSETS_DIR)/firecracker ]; then \
-		curl -L -o /tmp/firecracker.tgz https://github.com/firecracker-microvm/firecracker/releases/download/v1.4.1/firecracker-v1.4.1-aarch64.tgz && \
-		tar -xzf /tmp/firecracker.tgz -C /tmp && \
-		cp /tmp/release-v1.4.1-aarch64/firecracker-v1.4.1-aarch64 $(ASSETS_DIR)/firecracker && \
-		rm -rf /tmp/firecracker.tgz /tmp/release-v1.4.1-aarch64; \
-	fi
-	@echo "Downloading firecracker-containerd shim for ARM64..."
-	@if [ ! -f $(ASSETS_DIR)/containerd-shim-aws-firecracker ]; then \
-		curl -L -o /tmp/firecracker-containerd.tgz https://github.com/firecracker-microvm/firecracker-containerd/releases/download/v1.7.0/firecracker-containerd-1.7.0-linux-arm64.tar.gz && \
-		tar -xzf /tmp/firecracker-containerd.tgz -C /tmp && \
-		cp /tmp/bin/containerd-shim-aws-firecracker $(ASSETS_DIR)/ && \
-		rm -rf /tmp/firecracker-containerd.tgz /tmp/bin; \
+	@if [ ! -f /var/lib/firecracker/vmlinux.bin ]; then \
+		curl -L -o /tmp/vmlinux.bin https://s3.amazonaws.com/spec.ccfc.min/img/quickstart_guide/x86_64/kernels/vmlinux.bin && \
+		sudo cp /tmp/vmlinux.bin /var/lib/firecracker/vmlinux.bin && \
+		rm /tmp/vmlinux.bin; \
 	fi
 
 clean:
 	@echo "Cleaning build artifacts..."
 	rm -rf $(BUILD_DIR)
-	rm -rf $(ASSETS_DIR)/firecracker $(ASSETS_DIR)/containerd-shim-aws-firecracker
 
 deps:
 	go mod download
 	go mod tidy
 
 test: build
-	sudo $(BUILD_DIR)/$(BINARY_NAME) test
+	sudo $(BUILD_DIR)/$(BINARY_NAME) -action=test
 
-server: build
-	sudo $(BUILD_DIR)/$(BINARY_NAME) server
-
-vm-create: build
-	sudo $(BUILD_DIR)/$(BINARY_NAME) vm create test-vm alpine:latest
-
-vm-destroy: build
-	sudo $(BUILD_DIR)/$(BINARY_NAME) vm destroy test-vm
-
-vm-list: build
-	sudo $(BUILD_DIR)/$(BINARY_NAME) vm list
+healthcheck: build
+	sudo $(BUILD_DIR)/$(BINARY_NAME) -action=healthcheck
 
 format:
 	go fmt ./...
