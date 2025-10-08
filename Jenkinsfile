@@ -16,6 +16,11 @@ pipeline {
                     tty: true
                     securityContext:
                       runAsUser: 0
+                      resources:
+                    requests:
+                        ephemeral-storage: "20Gi"
+                    limits:
+                        ephemeral-storage: "30Gi"
                   - name: jnlp
                     image: jenkins/inbound-agent:latest
             '''
