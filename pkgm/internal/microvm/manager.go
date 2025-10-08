@@ -1,4 +1,4 @@
-package vm
+package microvm
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/oci"
@@ -173,7 +174,7 @@ func (m *Manager) Close() error {
 }
 
 func withFirecrackerConfig() oci.SpecOpts {
-	return func(ctx context.Context, client oci.Client, container *containerd.Container, s *specs.Spec) error {
+	return func(ctx context.Context, client oci.Client, c *containers.Container, s *specs.Spec) error {
 		// Configure for firecracker
 		if s.Linux == nil {
 			s.Linux = &specs.Linux{}
