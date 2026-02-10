@@ -114,6 +114,11 @@ pipeline {
                         fi
 
                         cp -r "${BUILD_DIR}/images"/* output/
+
+                        # Compress the image
+                        echo "Compressing sdcard.img..."
+                        gzip -9 output/sdcard.img
+
                         ls -la output/
                         du -h output/*
                     '''
@@ -137,16 +142,14 @@ pipeline {
             steps {
                 container('zaraos-builder') {
                     script {
-                        // Get commit hash from git command
                         sh 'git config --global --add safe.directory "*"'
                         def commitHash = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
-                        
+
                         def releaseTag
                         def releaseName
                         def isPrerelease
                         def shortSha = commitHash.take(8)
-        
-                        // Rest of your existing logic...
+
                         if (env.IS_NIGHTLY == 'true') {
                             releaseTag = "nightly-${new Date().format('yyyyMMdd-HHmmss')}"
                             releaseName = "ZaraOS Nightly ${releaseTag}"
@@ -162,25 +165,26 @@ pipeline {
                             releaseName = "ZaraOS ${releaseTag}"
                             isPrerelease = false
                         }
-        
+
                         def releaseBody = """
-        ## ZaraOS Release ${releaseTag}
-        
-        Automated build from commit ${commitHash}
-        
-        ### Build Information
-        - **Branch**: ${env.BRANCH_NAME}
-        - **Commit**: ${commitHash}
-        - **Build Date**: ${new Date().format('yyyy-MM-dd HH:mm:ss')}
-        - **Build Number**: ${env.BUILD_NUMBER}
-        - **Target**: Raspberry Pi 5 (64-bit ARM)
-        
-        ### Installation
-        Flash the sdcard.img to an SD card using Raspberry Pi Imager or dd command.
+## ZaraOS Release ${releaseTag}
+
+Automated build from commit ${commitHash}
+
+### Build Information
+- **Branch**: ${env.BRANCH_NAME}
+- **Commit**: ${commitHash}
+- **Build Date**: ${new Date().format('yyyy-MM-dd HH:mm:ss')}
+- **Build Number**: ${env.BUILD_NUMBER}
+- **Target**: Raspberry Pi 5 (64-bit ARM)
+
+### Installation
+Decompress the image: `gunzip sdcard.img.gz`
+Flash the sdcard.img to an SD card using Raspberry Pi Imager or dd command.
                         """.trim()
-        
+
                         writeFile file: 'release_body.md', text: releaseBody
-        
+
                         createGitHubRelease(
                             credentialId: 'github_personal_token',
                             repository: 'KoalbyMQP/ZaraOS',
@@ -189,20 +193,18 @@ pipeline {
                             bodyFile: 'release_body.md',
                             prerelease: isPrerelease,
                             draft: false,
-                            commitish: commitHash  // Use the retrieved commit hash
+                            commitish: commitHash
                         )
-        
-                        // Upload assets
+
                         uploadGithubReleaseAsset(
                             credentialId: 'github_personal_token',
                             repository: 'KoalbyMQP/ZaraOS',
                             tagName: releaseTag,
-                            commitish: commitHash,  // Use the retrieved commit hash
                             uploadAssets: [
-                                [filePath: 'output/sdcard.img']
+                                [filePath: 'output/sdcard.img.gz']
                             ]
                         )
-        
+
                         env.RELEASE_TAG = releaseTag
                         echo "Release created: ${releaseName}"
                     }
@@ -210,6 +212,7 @@ pipeline {
             }
         }
     }
+
     post {
         always {
             script {
@@ -228,7 +231,7 @@ pipeline {
             script {
                 if (env.RELEASE_TAG) {
                     echo "ZaraOS ${env.RELEASE_TAG} built and released successfully!"
-                    echo "Download: https://github.com/${env.CHANGE_TARGET ?: env.GIT_URL.tokenize('/').last().replace('.git', '')}/releases/tag/${env.RELEASE_TAG}"
+                    echo "Download: https://github.com/KoalbyMQP/ZaraOS/releases/tag/${env.RELEASE_TAG}"
                 } else {
                     echo "ZaraOS build completed successfully!"
                 }
