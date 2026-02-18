@@ -38,7 +38,7 @@ console=tty1 console=ttyAMA10,115200
 pcie_aspm=off
 
 # DEBUG
-loglevel=7 earlyprintk=serial,ttyAMA10,115200 debug ignore_loglevel
+# loglevel=7 earlyprintk=serial,ttyAMA10,115200 debug ignore_loglevel
 
 # Disable ARM security
 # FIXME: NOT safe
