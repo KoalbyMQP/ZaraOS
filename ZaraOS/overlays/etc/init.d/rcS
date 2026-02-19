@@ -1,13 +1,6 @@
 #!/bin/sh
 
-# Start psplash early so user sees something immediately
-psplash &
-sleep 1
-echo "MSG Booting ZaraOS..." > /tmp/psplash-fifo
-echo "PROGRESS 5" > /tmp/psplash-fifo
-
-# Mount essential filesystems
-echo "MSG Mounting filesystems..." > /tmp/psplash-fifo
+# Mounts FIRST before anything else
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
@@ -15,13 +8,20 @@ mount -o remount,rw /
 [ -d /dev/pts ] || mkdir /dev/pts
 mount -t devpts devpts /dev/pts
 mount -t tmpfs tmpfs /tmp
-echo "PROGRESS 20" > /tmp/psplash-fifo
+
+# Now psplash has a chance of working
+psplash &
+sleep 10
+
+# Make fifo writes non-blocking so a psplash crash doesn't hang boot
+echo "MSG Booting ZaraOS..." > /tmp/psplash-fifo 2>/dev/null || true
+echo "PROGRESS 5" > /tmp/psplash-fifo 2>/dev/null || true
 
 # Cgroups
-echo "MSG Initializing cgroups..." > /tmp/psplash-fifo
+echo "MSG Initializing cgroups..." > /tmp/psplash-fifo || true
 mkdir -p /sys/fs/cgroup
 mount -t cgroup2 cgroup2 /sys/fs/cgroup
-echo "PROGRESS 35" > /tmp/psplash-fifo
+echo "PROGRESS 35" > /tmp/psplash-fifo || true
 
 # Hostname and logging
 [ -f /etc/hostname ] && hostname -F /etc/hostname
@@ -42,24 +42,24 @@ if [ -d /etc/modules-load.d ]; then
 fi
 
 # Network
-echo "MSG Starting network..." > /tmp/psplash-fifo
+echo "MSG Starting network..." > /tmp/psplash-fifo || true
 [ -x /sbin/ifup ] && ifup -a || ifconfig lo up
-echo "PROGRESS 50" > /tmp/psplash-fifo
+echo "PROGRESS 50" > /tmp/psplash-fifo || true
 
 # Time sync - background so it doesn't block boot
-echo "MSG Syncing time..." > /tmp/psplash-fifo
+echo "MSG Syncing time..." > /tmp/psplash-fifo || true
 ntpd -p pool.ntp.org &
-echo "PROGRESS 65" > /tmp/psplash-fifo
+echo "PROGRESS 65" > /tmp/psplash-fifo || true
 
 # Containerd
-echo "MSG Starting container runtime..." > /tmp/psplash-fifo
+echo "MSG Starting container runtime..." > /tmp/psplash-fifo || true
 containerd &
 timeout=15
 while [ ! -S /run/containerd/containerd.sock ] && [ $timeout -gt 0 ]; do
     sleep 1
     timeout=$((timeout - 1))
 done
-echo "PROGRESS 85" > /tmp/psplash-fifo
+echo "PROGRESS 85" > /tmp/psplash-fifo || true
 
 # S* scripts
 for script in /etc/init.d/S*; do
@@ -67,8 +67,8 @@ for script in /etc/init.d/S*; do
     "$script" start
 done
 
-echo "PROGRESS 100" > /tmp/psplash-fifo
+echo "PROGRESS 100" > /tmp/psplash-fifo || true
 sleep 1
-echo "QUIT" > /tmp/psplash-fifo
+echo "QUIT" > /tmp/psplash-fifo || true
 
 echo "ZaraOS ready"
