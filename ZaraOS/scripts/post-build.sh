@@ -29,13 +29,6 @@ set -e  # Exit on any error
 
 echo "Setting file permissions for ZaraOS"
 
-# Make Python demo script executable
-if [ -f "${TARGET_DIR}/usr/local/bin/demo.py" ]; then
-    chmod +x "${TARGET_DIR}/usr/local/bin/demo.py"
-    echo "Made demo.py executable"
-else
-    echo "Warning: demo.py not found (overlay may not have been applied)"
-fi
 
 # Make autologin script executable
 if [ -f "${TARGET_DIR}/usr/bin/autologin.sh" ]; then
@@ -46,11 +39,11 @@ else
 fi
 
 # Make startup script executable
-if [ -f "${TARGET_DIR}/etc/profile.d/zaraos-startup.sh" ]; then
-    chmod +x "${TARGET_DIR}/etc/profile.d/zaraos-startup.sh"
-    echo "Made zaraos-startup.sh executable"
+if [ -f "${TARGET_DIR}/etc/init.d/rcS" ]; then
+    chmod +x "${TARGET_DIR}/etc/init.d/rcS"
+    echo "Made rcS executable"
 else
-    echo "Warning: zaraos-startup.sh not found (overlay may not have been applied)"
+    echo "Warning: rcS not found (overlay may not have been applied)"
 fi
 
 # Set appropriate permissions for security
