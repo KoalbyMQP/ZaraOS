@@ -1,51 +1,34 @@
 #!/bin/sh
-# ===================================================================
-# ZaraOS System Initialization Script (rcS)
-# ===================================================================
-# This script runs at boot time to initialize the system before
-# user login. It handles basic system setup and service startup.
-#
-# Called by: BusyBox init via /etc/inittab ::sysinit: action
-# Purpose: System initialization and service startup
-# ===================================================================
 
-echo "Starting ZaraOS system initialization..."
+# Start psplash early so user sees something immediately
+psplash &
+sleep 1
+echo "MSG Booting ZaraOS..." > /tmp/psplash-fifo
+echo "PROGRESS 5" > /tmp/psplash-fifo
 
 # Mount essential filesystems
-echo "Mounting filesystems..."
-/bin/mount -t proc proc /proc
-/bin/mount -t sysfs sysfs /sys
-/bin/mount -t devtmpfs devtmpfs /dev
-
-# Create additional device nodes if needed
+echo "MSG Mounting filesystems..." > /tmp/psplash-fifo
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mount -o remount,rw /
 [ -d /dev/pts ] || mkdir /dev/pts
-/bin/mount -t devpts devpts /dev/pts
+mount -t devpts devpts /dev/pts
+mount -t tmpfs tmpfs /tmp
+echo "PROGRESS 20" > /tmp/psplash-fifo
 
-# Set up /tmp as tmpfs
-/bin/mount -t tmpfs tmpfs /tmp
+# Cgroups
+echo "MSG Initializing cgroups..." > /tmp/psplash-fifo
+mkdir -p /sys/fs/cgroup
+mount -t cgroup2 cgroup2 /sys/fs/cgroup
+echo "PROGRESS 35" > /tmp/psplash-fifo
 
-# Set hostname from /etc/hostname
-if [ -f /etc/hostname ]; then
-    /bin/hostname -F /etc/hostname
-    echo "Hostname set to: $(cat /etc/hostname)"
-fi
+# Hostname and logging
+[ -f /etc/hostname ] && hostname -F /etc/hostname
+[ -x /sbin/klogd ] && klogd
+[ -x /sbin/syslogd ] && syslogd
 
-# Start essential services
-echo "Starting system services..."
-
-# Start kernel log daemon
-if [ -x /sbin/klogd ]; then
-    /sbin/klogd
-    echo "Started klogd"
-fi
-
-# Start system log daemon
-if [ -x /sbin/syslogd ]; then
-    /sbin/syslogd
-    echo "Started syslogd"
-fi
-
-# Load kernel modules if any
+# Kernel modules
 if [ -d /etc/modules-load.d ]; then
     for conf in /etc/modules-load.d/*.conf; do
         [ -f "$conf" ] || continue
@@ -58,28 +41,34 @@ if [ -d /etc/modules-load.d ]; then
     done
 fi
 
-# Set up network interfaces
-echo "Configuring network..."
-if [ -x /sbin/ifup ]; then
-    /sbin/ifup -a
-else
-    # Fallback: bring up loopback at minimum
-    /sbin/ifconfig lo up
-fi
+# Network
+echo "MSG Starting network..." > /tmp/psplash-fifo
+[ -x /sbin/ifup ] && ifup -a || ifconfig lo up
+echo "PROGRESS 50" > /tmp/psplash-fifo
 
-# Run any additional initialization scripts
-if [ -d /etc/init.d ]; then
-    for script in /etc/init.d/S*; do
-        [ -x "$script" ] || continue
-        case "$script" in
-            */rcS) continue ;;  # Skip ourselves
-            *)
-                echo "Running: $(basename $script)"
-                "$script" start
-                ;;
-        esac
-    done
-fi
+# Time sync - background so it doesn't block boot
+echo "MSG Syncing time..." > /tmp/psplash-fifo
+ntpd -p pool.ntp.org &
+echo "PROGRESS 65" > /tmp/psplash-fifo
 
-echo "ZaraOS system initialization complete"
-echo ""
+# Containerd
+echo "MSG Starting container runtime..." > /tmp/psplash-fifo
+containerd &
+timeout=15
+while [ ! -S /run/containerd/containerd.sock ] && [ $timeout -gt 0 ]; do
+    sleep 1
+    timeout=$((timeout - 1))
+done
+echo "PROGRESS 85" > /tmp/psplash-fifo
+
+# S* scripts
+for script in /etc/init.d/S*; do
+    [ -x "$script" ] || continue
+    "$script" start
+done
+
+echo "PROGRESS 100" > /tmp/psplash-fifo
+sleep 1
+echo "QUIT" > /tmp/psplash-fifo
+
+echo "ZaraOS ready"
