@@ -127,6 +127,7 @@ BR2_PACKAGE_CONTAINERD=y
 BR2_PACKAGE_CRUN=y
 BR2_PACKAGE_CNI_PLUGINS=y
 BR2_PACKAGE_IPTABLES=y
+BR2_PACKAGE_WPA_SUPPLICANT_CLI=y
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ PYTHON 3 DEPENDENCIES                                           │
