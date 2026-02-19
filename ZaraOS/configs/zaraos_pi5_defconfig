@@ -114,6 +114,10 @@ BR2_ARM64_PAGE_SIZE="16K"
 
 # XZ compression utilities (useful for package management)
 BR2_PACKAGE_XZ=y
+BR2_PACKAGE_LINUX_FIRMWARE=y
+BR2_PACKAGE_LINUX_FIRMWARE_BRCM_BCM43XX=y
+BR2_PACKAGE_WPA_SUPPLICANT=y
+BR2_PACKAGE_WPA_SUPPLICANT_NL80211=y
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ CONTAINER RUNTIME                                               │
 # └─────────────────────────────────────────────────────────────────┘
