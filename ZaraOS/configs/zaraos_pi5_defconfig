@@ -140,7 +140,8 @@ BR2_PACKAGE_WPA_SUPPLICANT_CLI=y
 
 BR2_PACKAGE_PSPLASH=y
 BR2_PACKAGE_PSPLASH_CUSTOM_ARTWORK=y
-BR2_PACKAGE_PSPLASH_CUSTOM_ARTWORK_PATH="$(BR2_EXTERNAL_ZaraOS_PATH)/artwork/zaraos-logo.png"
+BR2_PACKAGE_PSPLASH_CUSTOM_ARTWORK_PATH="$(BR2_EXTERNAL_ZaraOS_PATH)/artwork/zaraos_logo.png"
+BR2_PACKAGE_PSPLASH_PROGRESS_BAR=y
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ PYTHON 3 DEPENDENCIES                                           │

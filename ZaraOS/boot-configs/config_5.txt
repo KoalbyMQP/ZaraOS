@@ -81,6 +81,12 @@ dtoverlay=vc4-kms-v3d-pi5
 
 boot_delay=5
 
+hdmi_group=2
+hdmi_mode=87
+hdmi_cvt=1024 600 60 6 0 0 0
+hdmi_drive=2
+hdmi_force_hotplug=1
+
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ HARDWARE INTERFACE CONFIGURATION                                │
 # └─────────────────────────────────────────────────────────────────┘
