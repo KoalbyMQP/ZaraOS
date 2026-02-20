@@ -166,12 +166,7 @@ act_led_trigger=default
 
 auto_initramfs=1
 
-# ===================================================================
-# End of ZaraOS Pi 5 Configuration
-#
-# Remember to:
-# 1. Test thoroughly after changes
-# 2. Monitor temperature under load (vcgencmd measure_temp)
-# 3. Check power supply is adequate (5V 3A+ recommended)
-# 4. Backup working configurations before experimenting
-# ===================================================================
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ cmdline                                                         │
+# └─────────────────────────────────────────────────────────────────┘
+cmdline=cmdline_5_a.txt

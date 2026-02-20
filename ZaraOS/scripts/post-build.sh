@@ -1,104 +1,58 @@
 #!/bin/sh
-# ===================================================================
-# ZaraOS Post-Build Script - Simplified Version
-# ===================================================================
-# This script runs after the root filesystem is built but before
-# creating the final filesystem images. Most customizations are now
-# handled by the rootfs overlay system for better maintainability.
-#
-# This script now only handles:
-# - File permissions that can't be set via overlay
-# - Filesystem optimization and cleanup
-# - Security-related tasks
-#
-# Documentation:
-# - Buildroot Post-Build: https://buildroot.org/downloads/manual/manual.html#rootfs-custom
-# - System Configuration: https://buildroot.org/downloads/manual/manual.html#customize-rootfs
-#
-# Environment:
-# - TARGET_DIR: Path to the target root filesystem directory
-# - Called from Buildroot's main Makefile during build process
-# ===================================================================
-
-set -u  # Exit on undefined variables
-set -e  # Exit on any error
+# shellcheck disable=SC2154  # BR2_EXTERNAL_ZaraOS_PATH and TARGET_DIR injected by Buildroot
+set -u
+set -e
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ FILE PERMISSIONS                                                │
+# │ VERSION INJECTION                                               │
 # └─────────────────────────────────────────────────────────────────┘
 
-echo "Setting file permissions for ZaraOS"
-
-
-# Make autologin script executable
-if [ -f "${TARGET_DIR}/usr/bin/autologin.sh" ]; then
-    chmod +x "${TARGET_DIR}/usr/bin/autologin.sh"
-    echo "Made autologin.sh executable"
-else
-    echo "Warning: autologin.sh not found (overlay may not have been applied)"
+VERSION_FILE="${BR2_EXTERNAL_ZaraOS_PATH}/VERSION"
+if [ ! -f "$VERSION_FILE" ]; then
+    echo "ERROR: VERSION file not found at ${VERSION_FILE}"
+    exit 1
 fi
 
-# Make startup script executable
-if [ -f "${TARGET_DIR}/etc/init.d/rcS" ]; then
-    chmod +x "${TARGET_DIR}/etc/init.d/rcS"
-    echo "Made rcS executable"
-else
-    echo "Warning: rcS not found (overlay may not have been applied)"
-fi
+# shellcheck source=/dev/null
+. "$VERSION_FILE"
+echo "Injecting versions: BOARD=${BOARD_VERSION} OS=${OS_VERSION}"
 
-# Set appropriate permissions for security
-echo "Setting security permissions"
+cat > "${TARGET_DIR}/etc/zaraos-release" <<EOF
+BOARD_VERSION=${BOARD_VERSION}
+OS_VERSION=${OS_VERSION}
+HOSTNAME=zaraos
+TARGET=Raspberry Pi 5
+ARCH=aarch64
+BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EOF
 
-# Ensure root directories have correct permissions
-chmod 755 "${TARGET_DIR}/etc" 2>/dev/null || true
-chmod 755 "${TARGET_DIR}/var" 2>/dev/null || true
-chmod 1777 "${TARGET_DIR}/tmp" 2>/dev/null || true  # sticky bit for tmp
-
-# Ensure /usr/local/bin is executable
-chmod 755 "${TARGET_DIR}/usr/local/bin" 2>/dev/null || true
+echo "Written /etc/zaraos-release"
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ FILESYSTEM OPTIMIZATION                                         │
+# │ PERMISSIONS                                                     │
 # └─────────────────────────────────────────────────────────────────┘
 
-echo "Optimizing filesystem size"
+find "${TARGET_DIR}/etc/init.d" -type f -exec chmod +x {} +
+find "${TARGET_DIR}/usr/bin"    -type f -exec chmod +x {} +
 
-# Remove documentation that's not essential for embedded system
-if [ -d "${TARGET_DIR}/usr/share/doc" ]; then
-    rm -rf "${TARGET_DIR}/usr/share/doc"/* 2>/dev/null || true
-    echo "Cleaned documentation files"
-fi
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ SECURITY                                                        │
+# └─────────────────────────────────────────────────────────────────┘
 
-# Remove man pages
-if [ -d "${TARGET_DIR}/usr/share/man" ]; then
-    rm -rf "${TARGET_DIR}/usr/share/man"/* 2>/dev/null || true
-    echo "Cleaned man pages"
-fi
+chmod 755  "${TARGET_DIR}/etc"          2>/dev/null || true
+chmod 755  "${TARGET_DIR}/var"          2>/dev/null || true
+chmod 1777 "${TARGET_DIR}/tmp"          2>/dev/null || true
+chmod 755  "${TARGET_DIR}/usr/local/bin" 2>/dev/null || true
 
-# Remove locale files except C/POSIX (saves space)
-if [ -d "${TARGET_DIR}/usr/share/locale" ]; then
-    find "${TARGET_DIR}/usr/share/locale" -mindepth 1 -maxdepth 1 -type d ! -name 'C' ! -name 'POSIX' -exec rm -rf {} + 2>/dev/null || true
-    echo "Cleaned locale files"
-fi
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ CLEANUP                                                         │
+# └─────────────────────────────────────────────────────────────────┘
 
-# Remove Python cache files if any were created
+rm -rf "${TARGET_DIR}/usr/share/doc"/* 2>/dev/null || true
+rm -rf "${TARGET_DIR}/usr/share/man"/* 2>/dev/null || true
+find "${TARGET_DIR}/usr/share/locale" -mindepth 1 -maxdepth 1 -type d \
+    ! -name 'C' ! -name 'POSIX' -exec rm -rf {} + 2>/dev/null || true
 find "${TARGET_DIR}" -name "*.pyc" -delete 2>/dev/null || true
 find "${TARGET_DIR}" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
-echo "Cleaned Python cache files"
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ COMPLETION                                                      │
-# └─────────────────────────────────────────────────────────────────┘
-
-echo ""
-echo "═══════════════════════════════════════════════════════════════"
-echo "ZaraOS post-build script completed successfully"
-echo "  - File permissions: Set"
-echo "  - Filesystem optimization: Complete"
-echo "  - Overlay validation: Complete"
-echo "  - Python demo script: Ready"
-echo "  - Auto-login script: Ready"
-echo "  - Auto-login: Configured via overlay"
-echo "  - Network: DHCP configured"
-echo "═══════════════════════════════════════════════════════════════"
-echo ""
+echo "post-build complete: board=${BOARD_VERSION} os=${OS_VERSION}"

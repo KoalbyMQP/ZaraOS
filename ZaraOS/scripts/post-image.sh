@@ -1,247 +1,158 @@
 #!/bin/bash
-# ===================================================================
-# ZaraOS Post-Image Script
-# ===================================================================
-# This script runs after all filesystem images are created and
-# generates the final SD card image using genimage. It handles
-# the complex process of combining boot and root filesystems.
-#
-# Documentation:
-# - Buildroot Post-Image: https://buildroot.org/downloads/manual/manual.html#rootfs-custom
-# - Genimage Tool: https://github.com/pengutronix/genimage
-# - Pi Boot Process: https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#boot-sequence
-#
-# Environment:
-# - BINARIES_DIR: Contains all built images and firmware
-# - BUILD_DIR: Temporary build directory
-# - Called after rootfs.ext4 and boot files are ready
-# ===================================================================
-
-set -e  # Exit on any error
-
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ ENVIRONMENT SETUP                                               │
-# └─────────────────────────────────────────────────────────────────┘
+set -e
 
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
 echo "ZaraOS Post-Image: Generating SD Card Image"
 echo "═══════════════════════════════════════════════════════════════"
 
-# Use BR2_EXTERNAL path instead of hardcoded workspace path
-# BR2_EXTERNAL_ZaraOS_PATH is set by buildroot automatically
 BOARD_DIR="${BR2_EXTERNAL_ZaraOS_PATH:-$(dirname "$(dirname "$0")")}"
 GENIMAGE_CFG="${BINARIES_DIR}/genimage.cfg"
 GENIMAGE_TMP="${BUILD_DIR}/genimage.tmp"
 
-echo "ZaraOS directory: ${BOARD_DIR}"
-echo "Genimage config: ${GENIMAGE_CFG}"
-echo "Temporary directory: ${GENIMAGE_TMP}"
-
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ GENIMAGE CONFIGURATION GENERATION                               │
+# │ VERSION                                                         │
 # └─────────────────────────────────────────────────────────────────┘
 
-# Always generate genimage configuration from template
-echo ""
-echo "Generating genimage config from template"
+VERSION_FILE="${BOARD_DIR}/VERSION"
+if [ ! -f "$VERSION_FILE" ]; then
+    echo "ERROR: VERSION file not found at ${VERSION_FILE}"
+    exit 1
+fi
 
+# shellcheck source=/dev/null
+. "$VERSION_FILE"
+echo "Versions: BOARD=${BOARD_VERSION} OS=${OS_VERSION}"
+
+# Write board-version file into BINARIES_DIR — goes onto boot FAT partition
+# zaraos-update.sh reads this at runtime for OTA compatibility checks
+cat > "${BINARIES_DIR}/board-version" <<EOF
+BOARD_VERSION=${BOARD_VERSION}
+OS_VERSION=${OS_VERSION}
+EOF
+echo "board-version file created"
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ ROOTFS-B                                                        │
+# └─────────────────────────────────────────────────────────────────┘
+
+echo "Creating rootfs-b (copy of rootfs-a)..."
+cp "${BINARIES_DIR}/rootfs.ext4" "${BINARIES_DIR}/rootfs-b.ext4"
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ BOOT FILES STAGING                                              │
+# └─────────────────────────────────────────────────────────────────┘
+
+# Initial slot tracking file
+echo "a" > "${BINARIES_DIR}/slot"
+
+# Stage tryboot.txt
+cp "${BOARD_DIR}/boot-configs/tryboot.txt" "${BINARIES_DIR}/tryboot.txt"
+
+# Stage both cmdline files
+cp "${BOARD_DIR}/cmdlines/cmdline_5_a.txt" "${BINARIES_DIR}/cmdline_5_a.txt"
+cp "${BOARD_DIR}/cmdlines/cmdline_5_b.txt" "${BINARIES_DIR}/cmdline_5_b.txt"
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ GENIMAGE CONFIG                                                 │
+# └─────────────────────────────────────────────────────────────────┘
+
+echo "Collecting boot files..."
 FILES=()
 
-echo "Collecting boot files:"
-
-# Collect all device tree files
 for dtb_file in "${BINARIES_DIR}"/*.dtb; do
-    if [ -f "$dtb_file" ]; then
-        filename=$(basename "$dtb_file")
-        FILES+=( "$filename" )
-        echo "   Device Tree: $filename"
-    fi
+    [ -f "$dtb_file" ] || continue
+    FILES+=( "$(basename "$dtb_file")" )
 done
 
-# Collect all Raspberry Pi firmware files - Use basename only
 for fw_file in "${BINARIES_DIR}"/rpi-firmware/*; do
-    if [ -f "$fw_file" ]; then
-        filename=$(basename "$fw_file")
-        FILES+=( "$filename" )
-        echo "   Firmware: $filename"
-    fi
+    [ -f "$fw_file" ] || continue
+    FILES+=( "$(basename "$fw_file")" )
 done
 
-# Handle overlays directory specially - we need to preserve directory structure
-if [ -d "${BINARIES_DIR}/rpi-firmware/overlays" ]; then
-    echo "   Overlays directory: overlays/ ($(find "${BINARIES_DIR}/rpi-firmware/overlays" -type f | wc -l) files)"
-fi
+# Additional files going onto boot partition
+FILES+=( "slot" "board-version" "tryboot.txt" "cmdline_5_a.txt" "cmdline_5_b.txt" )
 
-# Determine kernel image name from config.txt
-KERNEL=$(sed -n 's/^kernel=//p' "${BINARIES_DIR}/rpi-firmware/config.txt" 2>/dev/null || echo "zImage")
-if [ -f "${BINARIES_DIR}/${KERNEL}" ]; then
-    FILES+=( "${KERNEL}" )
-    echo "   Kernel: ${KERNEL}"
-else
-    echo "   Warning: Kernel file '${KERNEL}' not found"
-fi
+KERNEL=$(sed -n 's/^kernel=//p' "${BINARIES_DIR}/rpi-firmware/config.txt" 2>/dev/null || echo "Image")
+[ -f "${BINARIES_DIR}/${KERNEL}" ] && FILES+=( "${KERNEL}" )
 
-# Generate the boot files list for genimage template
-BOOT_FILES=$(printf '\\t\\t\\t"%s",\\n' "${FILES[@]}")
-
-echo ""
-echo "Creating genimage configuration"
-
-# Substitute the boot files list in the template
-sed "s|#BOOT_FILES#|${BOOT_FILES}|" "${BOARD_DIR}/imaging/genimage.cfg.in" \
-    > "${GENIMAGE_CFG}"
-
-echo "Genimage configuration created with ${#FILES[@]} boot files"
+BOOT_FILES=$(printf '\t\t\t"%s",\n' "${FILES[@]}")
+sed "s|#BOOT_FILES#|${BOOT_FILES}|" "${BOARD_DIR}/imaging/genimage.cfg.in" > "${GENIMAGE_CFG}"
+echo "Genimage config written (${#FILES[@]} boot files)"
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ COPY FIRMWARE FILES TO ROOT LEVEL FOR GENIMAGE                  │
+# │ STAGE FIRMWARE TO ROOT LEVEL                                    │
 # └─────────────────────────────────────────────────────────────────┘
 
-echo ""
-echo "Copying firmware files to root level for genimage"
-
-# Copy firmware files from rpi-firmware subdirectory to root level
-# This ensures genimage can find them without subdirectory paths
 for fw_file in "${BINARIES_DIR}"/rpi-firmware/*; do
-    if [ -f "$fw_file" ]; then
-        filename=$(basename "$fw_file")
-        if [ ! -f "${BINARIES_DIR}/${filename}" ]; then
-            cp "$fw_file" "${BINARIES_DIR}/${filename}"
-            echo "   Copied: $filename"
-        fi
-    fi
+    [ -f "$fw_file" ] || continue
+    filename=$(basename "$fw_file")
+    [ -f "${BINARIES_DIR}/${filename}" ] || cp "$fw_file" "${BINARIES_DIR}/${filename}"
 done
 
-# Copy overlays directory maintaining directory structure
-if [ -d "${BINARIES_DIR}/rpi-firmware/overlays" ]; then
-    if [ ! -d "${BINARIES_DIR}/overlays" ]; then
-        cp -r "${BINARIES_DIR}/rpi-firmware/overlays" "${BINARIES_DIR}/overlays"
-        overlay_count=$(find "${BINARIES_DIR}/overlays" -type f | wc -l)
-        echo "   Copied: overlays/ directory with ${overlay_count} files"
-    fi
+if [ -d "${BINARIES_DIR}/rpi-firmware/overlays" ] && [ ! -d "${BINARIES_DIR}/overlays" ]; then
+    cp -r "${BINARIES_DIR}/rpi-firmware/overlays" "${BINARIES_DIR}/overlays"
 fi
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ IMAGE VALIDATION                                                │
+# │ VALIDATE                                                        │
 # └─────────────────────────────────────────────────────────────────┘
 
-echo ""
-echo "Validating required images"
-
-# Check that essential files exist
-REQUIRED_FILES=(
-    "${BINARIES_DIR}/rootfs.ext4"
-    "${BINARIES_DIR}/config.txt"
-    "${BINARIES_DIR}/cmdline.txt"
-)
-
-for file in "${REQUIRED_FILES[@]}"; do
-    if [ -f "$file" ]; then
-        size=$(du -h "$file" | cut -f1)
-        echo "   $(basename "$file"): $size"
-    else
-        echo "   Missing: $(basename "$file")"
+for f in rootfs.ext4 rootfs-b.ext4 config.txt cmdline_5_a.txt; do
+    if [ ! -f "${BINARIES_DIR}/${f}" ]; then
+        echo "ERROR: missing required file: ${f}"
         exit 1
     fi
+    echo "  ${f}: $(du -h "${BINARIES_DIR}/${f}" | cut -f1)"
 done
 
-# Check overlays directory
-if [ -d "${BINARIES_DIR}/overlays" ]; then
-    overlay_count=$(find "${BINARIES_DIR}/overlays" -type f | wc -l)
-    echo "   overlays/: ${overlay_count} files"
-else
-    echo "   Warning: overlays/ directory not found"
-fi
-
-# Display boot partition contents summary
-echo ""
-echo "Boot partition will contain:"
-grep -A 10 "files = {" "${GENIMAGE_CFG}" | grep '"' | sed 's/.*"\(.*\)".*/   • \1/'
-
-# Show overlays directory information
-if [ -d "${BINARIES_DIR}/overlays" ]; then
-    overlay_count=$(find "${BINARIES_DIR}/overlays" -type f | wc -l)
-    echo "   • overlays/ directory (${overlay_count} overlay files)"
-fi
-
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ GENIMAGE EXECUTION                                              │
+# │ GENIMAGE                                                        │
 # └─────────────────────────────────────────────────────────────────┘
 
-echo ""
-echo "Running genimage to create SD card image"
-
-# Create a temporary empty rootpath
-# genimage makes a full copy of rootpath, so we use empty directory
-# to avoid copying the entire target filesystem unnecessarily
 trap 'rm -rf "${ROOTPATH_TMP}"' EXIT
 ROOTPATH_TMP="$(mktemp -d)"
-
-# Clean previous genimage temporary files
 rm -rf "${GENIMAGE_TMP}"
 
-echo "Cleaned temporary directories"
-echo "Generating image"
-
-# Run genimage with proper parameters
 genimage \
     --rootpath "${ROOTPATH_TMP}"   \
-    --tmppath "${GENIMAGE_TMP}"    \
-    --inputpath "${BINARIES_DIR}"  \
+    --tmppath  "${GENIMAGE_TMP}"   \
+    --inputpath  "${BINARIES_DIR}" \
     --outputpath "${BINARIES_DIR}" \
     --config "${GENIMAGE_CFG}"
 
-GENIMAGE_EXIT_CODE=$?
-
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ RESULT VALIDATION AND REPORTING                                 │
+# │ ARTIFACT NAMING                                                 │
 # └─────────────────────────────────────────────────────────────────┘
 
-echo ""
-if [ ${GENIMAGE_EXIT_CODE} -eq 0 ]; then
-    echo "SD card image generation completed successfully"
-
-    # Display final image information
-    if [ -f "${BINARIES_DIR}/sdcard.img" ]; then
-        IMAGE_SIZE=$(du -h "${BINARIES_DIR}/sdcard.img" | cut -f1)
-        IMAGE_SIZE_BYTES=$(stat -c%s "${BINARIES_DIR}/sdcard.img" 2>/dev/null || echo "unknown")
-
-        echo ""
-        echo "Final Image Information:"
-        echo "   Location: ${BINARIES_DIR}/sdcard.img"
-        echo "   Size: ${IMAGE_SIZE} (${IMAGE_SIZE_BYTES} bytes)"
-        echo "   Target: Raspberry Pi 5"
-        echo ""
-        echo "Ready to flash! Use:"
-        echo "   sudo dd if=${BINARIES_DIR}/sdcard.img of=/dev/sdX bs=4M status=progress"
-        echo "   (Replace /dev/sdX with your SD card device)"
-    else
-        echo "Warning: sdcard.img not found after generation"
-        GENIMAGE_EXIT_CODE=1
-    fi
-else
-    echo "Genimage failed with exit code: ${GENIMAGE_EXIT_CODE}"
-    echo ""
-    echo "Troubleshooting tips:"
-    echo "   • Check ${GENIMAGE_TMP} for detailed logs"
-    echo "   • Verify all required files exist in ${BINARIES_DIR}"
-    echo "   • Ensure sufficient disk space available"
-    echo "   • Review genimage configuration: ${GENIMAGE_CFG}"
+if [ ! -f "${BINARIES_DIR}/sdcard.img" ]; then
+    echo "ERROR: sdcard.img not found after genimage"
+    exit 1
 fi
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ CLEANUP AND EXIT                                                │
-# └─────────────────────────────────────────────────────────────────┘
+# Versioned flash artifact
+FLASH_NAME="zaraos-board${BOARD_VERSION}-os${OS_VERSION}-sdcard.img"
+cp "${BINARIES_DIR}/sdcard.img" "${BINARIES_DIR}/${FLASH_NAME}"
+
+# Versioned OTA artifacts — rootfs only, what zaraos-update.sh downloads
+OTA_NAME="zaraos-os${OS_VERSION}-rootfs.ext4"
+cp "${BINARIES_DIR}/rootfs.ext4" "${BINARIES_DIR}/${OTA_NAME}"
+gzip -9 -f "${BINARIES_DIR}/${OTA_NAME}"
+sha256sum "${BINARIES_DIR}/${OTA_NAME}.gz" > "${BINARIES_DIR}/${OTA_NAME}.gz.sha256"
+
+# Version manifest for OTA compatibility checks
+cat > "${BINARIES_DIR}/zaraos-os${OS_VERSION}-manifest.txt" <<EOF
+OS_VERSION=${OS_VERSION}
+BOARD_VERSION=${BOARD_VERSION}
+ROOTFS=${OTA_NAME}.gz
+EOF
 
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
-if [ ${GENIMAGE_EXIT_CODE} -eq 0 ]; then
-    echo "ZaraOS SD card image ready for deployment"
-else
-    echo "ZaraOS image generation failed"
-fi
-echo "═══════════════════════════════════════════════════════════════"
+echo "Artifacts:"
+echo "  Flash:    ${FLASH_NAME}"
+echo "  OTA:      ${OTA_NAME}.gz"
+echo "  Manifest: zaraos-os${OS_VERSION}-manifest.txt"
 echo ""
-
-exit ${GENIMAGE_EXIT_CODE}
+echo "Flash: sudo dd if=${BINARIES_DIR}/${FLASH_NAME} of=/dev/sdX bs=4M status=progress"
+echo "═══════════════════════════════════════════════════════════════"

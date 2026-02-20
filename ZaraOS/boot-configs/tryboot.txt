@@ -1,0 +1,27 @@
+# ZaraOS tryboot config - slot B
+# Written to /boot/tryboot.txt by zaraos-update before rebooting.
+# Pi 5 firmware loads this instead of config.txt when reboot "0xc0" is issued.
+# If slot B boots successfully, zaraos-commit updates config.txt permanently.
+
+kernel=Image
+
+disable_overscan=1
+
+enable_uart=1
+
+dtoverlay=vc4-kms-v3d-pi5
+
+boot_delay=5
+
+hdmi_group=2
+hdmi_mode=87
+hdmi_cvt=1024 600 60 6 0 0 0
+hdmi_drive=2
+hdmi_force_hotplug=1
+
+pwr_led_trigger=heartbeat
+act_led_trigger=default
+
+auto_initramfs=1
+
+cmdline=cmdline_5_b.txt
