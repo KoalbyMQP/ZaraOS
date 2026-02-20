@@ -119,6 +119,12 @@ BR2_PACKAGE_LINUX_FIRMWARE_BRCM_BCM43XX=y
 BR2_PACKAGE_WPA_SUPPLICANT=y
 BR2_PACKAGE_WPA_SUPPLICANT_NL80211=y
 
+BR2_PACKAGE_GZIP=y
+BR2_PACKAGE_E2FSPROGS=y
+BR2_PACKAGE_E2FSPROGS_RESIZE2FS=y
+BR2_PACKAGE_UTIL_LINUX=y
+BR2_PACKAGE_UTIL_LINUX_BINARIES=y
+
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Dev tools                                               │
 # └─────────────────────────────────────────────────────────────────┘
@@ -174,8 +180,7 @@ BR2_PACKAGE_RPI_FIRMWARE=y
 BR2_PACKAGE_RPI_FIRMWARE_CONFIG_FILE="$(BR2_EXTERNAL_ZaraOS_PATH)/boot-configs/config_5.txt"
 
 # Use ZaraOS Pi 5 specific kernel command line
-BR2_PACKAGE_RPI_FIRMWARE_CMDLINE_FILE="$(BR2_EXTERNAL_ZaraOS_PATH)/cmdlines/cmdline_5.txt"
-
+BR2_PACKAGE_RPI_FIRMWARE_CMDLINE_FILE="$(BR2_EXTERNAL_ZaraOS_PATH)/cmdlines/cmdline_5_a.txt"
 # Always needed for hardware support - REQUIRED FOR BOOTING!
 BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB=y
 # Re-enable overlays - needed for Pi 5 hardware support and booting
@@ -198,7 +203,7 @@ BR2_TARGET_ROOTFS_EXT2_4=y
 
 # Root filesystem size - 120MB should be sufficient for base system
 # Increase if adding many packages or large datasets
-BR2_TARGET_ROOTFS_EXT2_SIZE="256M"
+BR2_TARGET_ROOTFS_EXT2_SIZE="512M"
 
 # Don't generate tar archive (not needed for Pi deployment)
 # BR2_TARGET_ROOTFS_TAR is not set
