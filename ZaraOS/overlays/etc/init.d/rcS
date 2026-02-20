@@ -10,8 +10,8 @@ mount -t devpts devpts /dev/pts
 mount -t tmpfs tmpfs /tmp
 
 # Now psplash has a chance of working
-psplash &
-sleep 10
+psplash < /dev/null &
+sleep 1
 
 # Make fifo writes non-blocking so a psplash crash doesn't hang boot
 echo "MSG Booting ZaraOS..." > /tmp/psplash-fifo 2>/dev/null || true
@@ -25,8 +25,8 @@ echo "PROGRESS 35" > /tmp/psplash-fifo || true
 
 # Hostname and logging
 [ -f /etc/hostname ] && hostname -F /etc/hostname
-[ -x /sbin/klogd ] && klogd
-[ -x /sbin/syslogd ] && syslogd
+[ -x /sbin/klogd ] && klogd < /dev/null
+[ -x /sbin/syslogd ] && syslogd < /dev/null
 
 # Kernel modules
 if [ -d /etc/modules-load.d ]; then
@@ -48,12 +48,12 @@ echo "PROGRESS 50" > /tmp/psplash-fifo || true
 
 # Time sync - background so it doesn't block boot
 echo "MSG Syncing time..." > /tmp/psplash-fifo || true
-ntpd -p pool.ntp.org &
+ntpd -p pool.ntp.org < /dev/null &
 echo "PROGRESS 65" > /tmp/psplash-fifo || true
 
 # Containerd
 echo "MSG Starting container runtime..." > /tmp/psplash-fifo || true
-containerd &
+containerd < /dev/null &
 timeout=15
 while [ ! -S /run/containerd/containerd.sock ] && [ $timeout -gt 0 ]; do
     sleep 1
@@ -64,7 +64,7 @@ echo "PROGRESS 85" > /tmp/psplash-fifo || true
 # S* scripts
 for script in /etc/init.d/S*; do
     [ -x "$script" ] || continue
-    "$script" start
+    "$script" start < /dev/null
 done
 
 echo "PROGRESS 100" > /tmp/psplash-fifo || true

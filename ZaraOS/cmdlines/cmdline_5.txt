@@ -1,1 +1,1 @@
-root=/dev/mmcblk0p2 rootwait console=tty1 console=ttyAMA10,115200 pcie_aspm=off arm64.nobti
+root=/dev/mmcblk0p2 rootwait console=ttyAMA10,115200 earlycon pcie_aspm=off arm64.nobti
