@@ -127,7 +127,7 @@ func (h *InstancesHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	exitCode := 0
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id":        id,
-		"state":     "stopped",
+		"state":     "stopping",
 		"exit_code": exitCode,
 	})
 }
