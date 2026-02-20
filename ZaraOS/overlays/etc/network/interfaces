@@ -1,5 +1,5 @@
 # ===================================================================
-# ZaraOS Network Interfaces Configuration
+#  Network Interfaces Configuration
 # ===================================================================
 # Network interfaces configuration for ZaraOS targeting robotics
 # applications with automatic DHCP configuration.
