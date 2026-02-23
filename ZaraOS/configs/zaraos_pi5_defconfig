@@ -177,7 +177,7 @@ BR2_PACKAGE_BZIP2=y
 BR2_PACKAGE_RPI_FIRMWARE=y
 BR2_PACKAGE_RPI_FIRMWARE_CUSTOM_GIT=y
 BR2_PACKAGE_RPI_FIRMWARE_CUSTOM_REPO_URL="https://github.com/raspberrypi/firmware"
-BR2_PACKAGE_RPI_FIRMWARE_CUSTOM_REPO_VERSION="1.1.20250915"
+BR2_PACKAGE_RPI_FIRMWARE_CUSTOM_REPO_VERSION="1.20250915"
 
 # Use ZaraOS Pi 5 specific boot configuration
 BR2_PACKAGE_RPI_FIRMWARE_CONFIG_FILE="$(BR2_EXTERNAL_ZaraOS_PATH)/boot-configs/config_5.txt"
@@ -188,6 +188,7 @@ BR2_PACKAGE_RPI_FIRMWARE_CMDLINE_FILE="$(BR2_EXTERNAL_ZaraOS_PATH)/cmdlines/cmdl
 BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB=y
 # Re-enable overlays - needed for Pi 5 hardware support and booting
 BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB_OVERLAYS=y
+
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ KERNEL MODULE SUPPORT                                           │
 # └─────────────────────────────────────────────────────────────────┘
