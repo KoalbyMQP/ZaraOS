@@ -52,7 +52,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:         addr,
-		Handler:      middleware.Logging(log, pub),
+		Handler:      middleware.CORS(middleware.Logging(log, pub)),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 0, // 0 = no write timeout, required for SSE streaming
 		IdleTimeout:  120 * time.Second,
