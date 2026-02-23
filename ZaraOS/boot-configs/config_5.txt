@@ -78,6 +78,8 @@ enable_uart=1
 
 # This is required for modern video output on Pi 5
 dtoverlay=vc4-kms-v3d-pi5
+disable_fw_kms_setup=1
+max_framebuffers=2
 
 boot_delay=5
 
