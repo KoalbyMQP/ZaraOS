@@ -1,24 +1,28 @@
 package handlers
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
 
 	"cortex/internal/logger"
+	"cortex/internal/registry"
 	"cortex/internal/store"
 )
 
 type InstancesHandler struct {
-	store *store.Store
-	log   *logger.Logger
+	store    *store.Store
+	registry *registry.Registry
+	log      *logger.Logger
 }
 
-func NewInstancesHandler(s *store.Store, l *logger.Logger) *InstancesHandler {
-	return &InstancesHandler{store: s, log: l}
+func NewInstancesHandler(s *store.Store, r *registry.Registry, l *logger.Logger) *InstancesHandler {
+	return &InstancesHandler{store: s, registry: r, log: l}
 }
 
 func (h *InstancesHandler) Register(mux *http.ServeMux) {
@@ -64,39 +68,37 @@ func (h *InstancesHandler) Start(w http.ResponseWriter, r *http.Request) {
 		req.Version = "latest"
 	}
 
-	app, ok := h.store.GetApp(req.App)
+	app, ok := h.registry.GetApp(req.App)
 	if !ok {
 		writeError(w, http.StatusNotFound, fmt.Sprintf("app %s not found", req.App))
 		return
 	}
 
-	version, ok := h.store.ResolveVersion(req.App, req.Version)
+	version, ok := h.registry.ResolveVersion(req.App, req.Version)
 	if !ok {
 		writeError(w, http.StatusNotFound,
 			fmt.Sprintf("version %s not found for app %s", req.Version, req.App))
 		return
 	}
 
-	// ros2-nav is treated as a singleton for demo purposes.
-	if app.Name == "ros2-nav" && h.store.HasRunningInstance(req.App) {
+	if h.store.HasRunningInstance(req.App) {
 		writeError(w, http.StatusConflict,
 			fmt.Sprintf("an instance of %s is already running", req.App))
 		return
 	}
 
-	inst := h.store.CreateInstance(req.App, version)
-	h.log.Event("INSTANCE STARTING", "app", req.App, "version", version, "id", inst.ID)
+	imageRef := h.registry.ImageRef(app.Name, version)
+	inst := h.store.CreateInstance(req.App, version, imageRef)
+
+	h.log.Event("INSTANCE STARTING", "app", req.App, "version", version, "id", inst.ID, "image", imageRef)
 	h.store.AddEvent("instance_started", map[string]any{
 		"instance_id": inst.ID,
 		"app":         req.App,
 		"version":     version,
+		"image":       imageRef,
 	})
 
-	go func() {
-		time.Sleep(600 * time.Millisecond)
-		h.store.SetInstanceState(inst.ID, "running", nil)
-		h.log.Event("INSTANCE RUNNING", "app", req.App, "version", version, "id", inst.ID)
-	}()
+	go h.runContainer(inst.ID, inst.ContainerID, imageRef, req.App, version)
 
 	writeJSON(w, http.StatusCreated, instanceSummary(inst))
 }
@@ -110,26 +112,11 @@ func (h *InstancesHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.store.SetInstanceState(id, "stopping", nil)
-	h.log.Event("INSTANCE STOPPING", "id", id, "app", inst.App, "hint", "SIGTERM sent, waiting up to 10s")
+	h.log.Event("INSTANCE STOPPING", "id", id, "app", inst.App)
 
-	go func() {
-		time.Sleep(700 * time.Millisecond)
-		exitCode := 0
-		h.store.SetInstanceState(id, "stopped", &exitCode)
-		h.log.Event("INSTANCE STOPPED", "id", id, "app", inst.App, "exit_code", 0)
-		h.store.AddEvent("instance_stopped", map[string]any{
-			"instance_id": id,
-			"app":         inst.App,
-			"exit_code":   0,
-		})
-	}()
+	go h.stopContainer(id, inst.ContainerID, inst.App)
 
-	exitCode := 0
-	writeJSON(w, http.StatusOK, map[string]any{
-		"id":        id,
-		"state":     "stopping",
-		"exit_code": exitCode,
-	})
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "state": "stopping"})
 }
 
 func (h *InstancesHandler) Restart(w http.ResponseWriter, r *http.Request) {
@@ -140,22 +127,18 @@ func (h *InstancesHandler) Restart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exitCode := 0
-	h.store.SetInstanceState(id, "stopped", &exitCode)
 	h.log.Event("INSTANCE RESTARTING", "old_id", id, "app", inst.App, "version", inst.Version)
 
-	newInst := h.store.CreateInstance(inst.App, inst.Version)
+	go h.stopContainer(id, inst.ContainerID, inst.App)
+
+	newInst := h.store.CreateInstance(inst.App, inst.Version, inst.Image)
 	h.store.AddEvent("instance_started", map[string]any{
 		"instance_id": newInst.ID,
 		"app":         inst.App,
 		"version":     inst.Version,
 	})
 
-	go func() {
-		time.Sleep(600 * time.Millisecond)
-		h.store.SetInstanceState(newInst.ID, "running", nil)
-		h.log.Event("INSTANCE RUNNING", "app", inst.App, "version", inst.Version, "id", newInst.ID)
-	}()
+	go h.runContainer(newInst.ID, newInst.ContainerID, inst.Image, inst.App, inst.Version)
 
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"old_id":     id,
@@ -175,32 +158,31 @@ func (h *InstancesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app, _ := h.store.GetApp(inst.App)
-	latest := app.LatestVersion
-
+	latest := h.registry.LatestVersion(inst.App)
+	if latest == "" {
+		writeError(w, http.StatusNotFound, "could not determine latest version")
+		return
+	}
 	if inst.Version == latest {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"error": fmt.Sprintf("already running latest version %s", latest),
+			"message": fmt.Sprintf("already running latest version %s", latest),
 		})
 		return
 	}
 
-	exitCode := 0
-	h.store.SetInstanceState(id, "stopped", &exitCode)
+	imageRef := h.registry.ImageRef(inst.App, latest)
 	h.log.Event("INSTANCE UPDATING", "id", id, "app", inst.App, "from", inst.Version, "to", latest)
 
-	newInst := h.store.CreateInstance(inst.App, latest)
+	go h.stopContainer(id, inst.ContainerID, inst.App)
+
+	newInst := h.store.CreateInstance(inst.App, latest, imageRef)
 	h.store.AddEvent("instance_started", map[string]any{
 		"instance_id": newInst.ID,
 		"app":         inst.App,
 		"version":     latest,
 	})
 
-	go func() {
-		time.Sleep(600 * time.Millisecond)
-		h.store.SetInstanceState(newInst.ID, "running", nil)
-		h.log.Event("INSTANCE RUNNING", "app", inst.App, "version", latest, "id", newInst.ID)
-	}()
+	go h.runContainer(newInst.ID, newInst.ContainerID, imageRef, inst.App, latest)
 
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"old_id":      id,
@@ -220,23 +202,24 @@ func (h *InstancesHandler) Logs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tail := 100
+	tail := "100"
 	if t := r.URL.Query().Get("tail"); t != "" {
-		if n, err := strconv.Atoi(t); err == nil && n > 0 {
-			tail = n
-		}
+		tail = t
 	}
 
-	fakeLogs := generateFakeLogs(inst, tail)
-
 	if r.URL.Query().Get("stream") != "true" {
+		out, err := nerdctl("logs", "--tail", tail, inst.ContainerID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to fetch logs: "+err.Error())
+			return
+		}
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, strings.Join(fakeLogs, "\n")+"\n")
+		w.Write([]byte(out))
 		return
 	}
 
-	// SSE stream
+	// SSE streaming via nerdctl logs --follow.
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "streaming not supported")
@@ -248,28 +231,29 @@ func (h *InstancesHandler) Logs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	for _, line := range fakeLogs {
-		fmt.Fprintf(w, "data: %s\n\n", line)
+	cmd := exec.CommandContext(r.Context(), "nerdctl", "logs", "--follow", "--tail", tail, inst.ContainerID)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		fmt.Fprintf(w, "data: error: %s\n\n", err.Error())
+		flusher.Flush()
+		return
 	}
-	flusher.Flush()
+	cmd.Stderr = cmd.Stdout
 
-	tick := time.NewTicker(3 * time.Second)
-	ka := time.NewTicker(15 * time.Second)
-	defer tick.Stop()
-	defer ka.Stop()
+	if err := cmd.Start(); err != nil {
+		fmt.Fprintf(w, "data: error: %s\n\n", err.Error())
+		flusher.Flush()
+		return
+	}
+	defer cmd.Wait()
 
-	lineN := len(fakeLogs)
-	for {
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
 		select {
 		case <-r.Context().Done():
 			return
-		case <-ka.C:
-			fmt.Fprintf(w, ": keepalive\n\n")
-			flusher.Flush()
-		case t := <-tick.C:
-			lineN++
-			line := fmt.Sprintf("%s [INFO] %s", t.UTC().Format(time.RFC3339), streamLine(inst.App, lineN))
-			fmt.Fprintf(w, "data: %s\n\n", line)
+		default:
+			fmt.Fprintf(w, "data: %s\n\n", scanner.Text())
 			flusher.Flush()
 		}
 	}
@@ -282,11 +266,17 @@ func (h *InstancesHandler) Health(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "instance not found")
 		return
 	}
-	healthy := inst.State == "running"
+
+	out, err := nerdctl("inspect", "--format", "{{.State.Running}}", inst.ContainerID)
+	healthy := err == nil && strings.TrimSpace(out) == "true"
 	output := "OK"
 	if !healthy {
 		output = fmt.Sprintf("instance is %s", inst.State)
+		if err != nil {
+			output = err.Error()
+		}
 	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id":           id,
 		"healthy":      healthy,
@@ -302,94 +292,134 @@ func (h *InstancesHandler) Metrics(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "instance not found")
 		return
 	}
+
 	uptime := int64(0)
 	if inst.StoppedAt == nil {
 		uptime = int64(time.Since(inst.StartedAt).Seconds())
 	}
+
+	out, err := nerdctl("stats", "--no-stream", "--format", "{{json .}}", inst.ContainerID)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"id":             id,
+			"uptime_seconds": uptime,
+			"error":          err.Error(),
+		})
+		return
+	}
+
+	cpu, mem := parseStats(out)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id":             id,
-		"cpu_percent":    12.4,
-		"memory_mb":      84,
+		"cpu_percent":    cpu,
+		"memory_mb":      mem,
 		"uptime_seconds": uptime,
 	})
 }
 
-// --- helpers ---
+// --- nerdctl helpers ---
+
+func (h *InstancesHandler) runContainer(instanceID, containerID, image, app, version string) {
+	if _, err := nerdctl("run", "-d", "--name", containerID, "--network", "host", image); err != nil {
+		h.log.Error("INSTANCE START FAILED", "id", instanceID, "image", image, "err", err)
+		exitCode := 1
+		h.store.SetInstanceState(instanceID, "crashed", &exitCode)
+		h.store.SetInstanceError(instanceID, err.Error())
+		h.store.AddEvent("instance_start_failed", map[string]any{
+			"instance_id": instanceID,
+			"app":         app,
+			"version":     version,
+			"error":       err.Error(),
+		})
+		return
+	}
+
+	h.store.SetInstanceState(instanceID, "running", nil)
+	h.log.Event("INSTANCE RUNNING", "app", app, "version", version, "id", instanceID)
+}
+
+func (h *InstancesHandler) stopContainer(instanceID, containerID, app string) {
+	nerdctl("stop", containerID)
+	nerdctl("rm", containerID)
+
+	exitCode := 0
+	h.store.SetInstanceState(instanceID, "stopped", &exitCode)
+	h.log.Event("INSTANCE STOPPED", "id", instanceID, "app", app, "exit_code", 0)
+	h.store.AddEvent("instance_stopped", map[string]any{
+		"instance_id": instanceID,
+		"app":         app,
+		"exit_code":   0,
+	})
+}
+
+// nerdctl runs a nerdctl command and returns combined stdout+stderr output.
+func nerdctl(args ...string) (string, error) {
+	out, err := exec.Command("nerdctl", args...).CombinedOutput()
+	return strings.TrimSpace(string(out)), err
+}
+
+// parseStats pulls cpu percent and memory MB from nerdctl stats JSON output.
+// Example: {"CPUPerc":"0.42%","MemUsage":"84.5MiB / 1.796GiB",...}
+func parseStats(raw string) (cpuPercent float64, memMB float64) {
+	var s struct {
+		CPUPerc  string `json:"CPUPerc"`
+		MemUsage string `json:"MemUsage"`
+	}
+	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+		return 0, 0
+	}
+
+	cpuStr := strings.TrimSuffix(s.CPUPerc, "%")
+	cpuPercent, _ = strconv.ParseFloat(cpuStr, 64)
+
+	// "84.5MiB / 1.796GiB" — take the left side
+	memStr := strings.Split(s.MemUsage, " / ")[0]
+	memMB = parseMemToMB(memStr)
+	return
+}
+
+func parseMemToMB(s string) float64 {
+	s = strings.TrimSpace(s)
+	units := []struct {
+		suffix string
+		factor float64
+	}{
+		{"GiB", 1024},
+		{"MiB", 1},
+		{"KiB", 1.0 / 1024},
+		{"GB", 953.674},
+		{"MB", 0.953674},
+		{"kB", 0.000953674},
+	}
+	for _, u := range units {
+		if strings.HasSuffix(s, u.suffix) {
+			v, err := strconv.ParseFloat(strings.TrimSuffix(s, u.suffix), 64)
+			if err == nil {
+				return v * u.factor
+			}
+		}
+	}
+	return 0
+}
+
+// --- response helpers ---
 
 func instanceSummary(inst *store.Instance) map[string]any {
 	return map[string]any{
-		"id":         inst.ID,
-		"app":        inst.App,
-		"version":    inst.Version,
-		"state":      inst.State,
-		"started_at": inst.StartedAt,
-		"stopped_at": inst.StoppedAt,
+		"id":           inst.ID,
+		"app":          inst.App,
+		"version":      inst.Version,
+		"image":        inst.Image,
+		"state":        inst.State,
+		"error":        inst.Error,
+		"started_at":   inst.StartedAt,
+		"stopped_at":   inst.StoppedAt,
 	}
 }
 
 func instanceFull(inst *store.Instance) map[string]any {
 	m := instanceSummary(inst)
-	m["pid"] = inst.PID
+	m["container_id"] = inst.ContainerID
 	m["exit_code"] = inst.ExitCode
 	return m
-}
-
-var bootLogs = map[string][]string{
-	"ros2-nav": {
-		"Navigation node started",
-		"LIDAR connected on /dev/ttyUSB0",
-		"Waiting for map...",
-		"Map received from /map topic",
-		"Navigation ready",
-		"Goal received: (3.2, 1.5)",
-		"Path planned: 12 waypoints",
-		"Obstacle detected at (2.1, 0.8) — replanning",
-		"New path: 14 waypoints",
-		"Goal reached in 8.3s",
-	},
-	"camera-driver": {
-		"Camera driver started",
-		"Device found at /dev/video0",
-		"Initializing H264 encoder",
-		"Streaming started at 1920x1080 30fps",
-		"Streaming OK — 2.1 Mbps",
-	},
-	"lidar-proc": {
-		"LIDAR processor started",
-		"Subscribed to /scan topic",
-		"Voxel grid filter initialized: leaf_size=0.05",
-		"Processing 50000 points/sec",
-		"Published /processed_scan",
-	},
-}
-
-var streamLogs = map[string][]string{
-	"ros2-nav":      {"Heartbeat OK", "Position: (1.2, 0.5)", "Velocity: 0.3 m/s", "Map updated", "Battery: 78%"},
-	"camera-driver": {"Frame captured", "Encode OK", "Buffer healthy", "Streaming OK"},
-	"lidar-proc":    {"Scan processed", "75230 pts", "Published /processed_scan"},
-}
-
-func generateFakeLogs(inst *store.Instance, tail int) []string {
-	msgs := bootLogs[inst.App]
-	if msgs == nil {
-		msgs = []string{"Process started", "Running..."}
-	}
-	var lines []string
-	t := inst.StartedAt
-	for i, msg := range msgs {
-		if i >= tail {
-			break
-		}
-		t = t.Add(time.Duration(i+1) * time.Second)
-		lines = append(lines, fmt.Sprintf("%s [INFO] %s", t.UTC().Format(time.RFC3339), msg))
-	}
-	return lines
-}
-
-func streamLine(app string, n int) string {
-	msgs := streamLogs[app]
-	if msgs == nil {
-		msgs = []string{"heartbeat"}
-	}
-	return msgs[n%len(msgs)]
 }

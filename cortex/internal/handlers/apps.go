@@ -4,16 +4,16 @@ import (
 	"net/http"
 
 	"cortex/internal/logger"
-	"cortex/internal/store"
+	"cortex/internal/registry"
 )
 
 type AppsHandler struct {
-	store *store.Store
-	log   *logger.Logger
+	registry *registry.Registry
+	log      *logger.Logger
 }
 
-func NewAppsHandler(s *store.Store, l *logger.Logger) *AppsHandler {
-	return &AppsHandler{store: s, log: l}
+func NewAppsHandler(r *registry.Registry, l *logger.Logger) *AppsHandler {
+	return &AppsHandler{registry: r, log: l}
 }
 
 func (h *AppsHandler) Register(mux *http.ServeMux) {
@@ -22,14 +22,17 @@ func (h *AppsHandler) Register(mux *http.ServeMux) {
 }
 
 func (h *AppsHandler) List(w http.ResponseWriter, r *http.Request) {
-	apps := h.store.ListApps()
+	apps := h.registry.ListApps()
 	out := make([]map[string]any, 0, len(apps))
 	for _, a := range apps {
+		latest := ""
+		if len(a.Versions) > 0 {
+			latest = a.Versions[0].Version
+		}
 		out = append(out, map[string]any{
 			"name":           a.Name,
 			"repo":           a.Repo,
-			"description":    a.Description,
-			"latest_version": a.LatestVersion,
+			"latest_version": latest,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"apps": out})
@@ -37,13 +40,13 @@ func (h *AppsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 func (h *AppsHandler) Versions(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-	if _, ok := h.store.GetApp(name); !ok {
+	app, ok := h.registry.GetApp(name)
+	if !ok {
 		writeError(w, http.StatusNotFound, "app not found")
 		return
 	}
-	versions, _ := h.store.GetVersions(name)
-	out := make([]map[string]any, 0, len(versions))
-	for _, v := range versions {
+	out := make([]map[string]any, 0, len(app.Versions))
+	for _, v := range app.Versions {
 		out = append(out, map[string]any{
 			"version":      v.Version,
 			"published_at": v.PublishedAt,

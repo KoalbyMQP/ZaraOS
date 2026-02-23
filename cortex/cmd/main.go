@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"cortex/internal/handlers"
 	"cortex/internal/logger"
 	"cortex/internal/middleware"
+	"cortex/internal/registry"
 	"cortex/internal/store"
 )
 
@@ -22,6 +24,15 @@ func main() {
 	log := logger.New()
 	st := store.New()
 	authStore := auth.NewStore()
+	reg := registry.New()
+
+	// Eagerly populate cache on boot so apps are ready immediately.
+	log.Info("fetching app registry...")
+	apps := reg.ListApps()
+	log.Info("registry ready", "apps", len(apps))
+
+
+	checkNerdctl(log)
 
 	// Public mux — no auth required.
 	pub := http.NewServeMux()
@@ -33,28 +44,26 @@ func main() {
 	prot := http.NewServeMux()
 
 	authHandler.RegisterProtected(prot)
-	handlers.NewAppsHandler(st, log).Register(prot)
-	handlers.NewInstancesHandler(st, log).Register(prot)
+	handlers.NewAppsHandler(reg, log).Register(prot)
+	handlers.NewInstancesHandler(st, reg, log).Register(prot)
 	handlers.NewDiagnosticsHandler(st, log).Register(prot)
 	handlers.NewROSHandler(log).Register(prot)
 	handlers.NewEventsHandler(st, log).Register(prot)
 	handlers.NewIdentityHandler(st, log).Register(prot)
 
-	// Catch-all for unknown protected routes.
 	prot.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte(`{"error":"not found"}`))
 	})
 
-	// Mount protected routes behind auth middleware.
 	pub.Handle("/", middleware.RequireAuth(authStore, log, prot))
 
 	server := &http.Server{
 		Addr:         addr,
 		Handler:      middleware.CORS(middleware.Logging(log, pub)),
 		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 0, // 0 = no write timeout, required for SSE streaming
+		WriteTimeout: 0,
 		IdleTimeout:  120 * time.Second,
 	}
 
@@ -78,6 +87,15 @@ func main() {
 		log.Error("shutdown error", "err", err)
 	}
 	log.Info("server stopped")
+}
+
+func checkNerdctl(log *logger.Logger) {
+	if _, err := exec.LookPath("nerdctl"); err != nil {
+		log.Warn("nerdctl not found in PATH — instance start/stop will fail",
+			"hint", "install nerdctl and ensure containerd is running")
+	} else {
+		log.Info("nerdctl found")
+	}
 }
 
 func printBanner(log *logger.Logger) {
