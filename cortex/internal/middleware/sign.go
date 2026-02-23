@@ -5,6 +5,9 @@ import (
 	"io"
 	"net/http"
 	"time"
+	"bufio"
+    "fmt"
+    "net"
 
 	"cortex/internal/auth"
 	"cortex/internal/logger"
@@ -102,4 +105,12 @@ type responseWriter struct {
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.status = code
 	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+    h, ok := rw.ResponseWriter.(http.Hijacker)
+    if !ok {
+        return nil, nil, fmt.Errorf("ResponseWriter does not implement http.Hijacker")
+    }
+    return h.Hijack()
 }

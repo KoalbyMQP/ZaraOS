@@ -50,6 +50,7 @@ func main() {
 	handlers.NewROSHandler(log).Register(prot)
 	handlers.NewEventsHandler(st, log).Register(prot)
 	handlers.NewIdentityHandler(st, log).Register(prot)
+	handlers.NewShellHandler(log).Register(prot, pub)
 
 	prot.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
