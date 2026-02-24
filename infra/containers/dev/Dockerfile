@@ -1,5 +1,5 @@
 # ZaraOS Development Environment Dockerfile for DevPod
-FROM mcr.microsoft.com/devcontainers/base:ubuntu-22.04
+FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
 
 # Install development tools
 RUN apt-get update && apt-get install -y \
