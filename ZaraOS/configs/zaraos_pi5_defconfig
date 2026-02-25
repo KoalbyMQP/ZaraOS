@@ -125,6 +125,9 @@ BR2_PACKAGE_E2FSPROGS_RESIZE2FS=y
 BR2_PACKAGE_UTIL_LINUX=y
 BR2_PACKAGE_UTIL_LINUX_BINARIES=y
 
+BR2_PACKAGE_CORTEX=y
+BR2_PACKAGE_HOST_GO=y
+
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Dev tools                                               │
 # └─────────────────────────────────────────────────────────────────┘
@@ -241,3 +244,4 @@ BR2_PACKAGE_LIBGPIOD_TOOLS=y
 BR2_PACKAGE_I2C_TOOLS=y
 BR2_PACKAGE_SPI_TOOLS=y
 BR2_PACKAGE_CA_CERTIFICATES=y
+BR2_PACKAGE_PROMETHEUS_NODE_EXPORTER=y

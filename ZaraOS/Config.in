@@ -17,3 +17,4 @@
 # Add your custom packages and configuration options here
 # Example:
 # source "$BR2_EXTERNAL_ZaraOS_PATH/package/your-package/Config.in"
+source "$BR2_EXTERNAL_ZaraOS_PATH/package/cortex/Config.in"
