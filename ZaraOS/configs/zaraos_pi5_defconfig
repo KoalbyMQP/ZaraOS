@@ -63,7 +63,7 @@ BR2_TARGET_GENERIC_ISSUE="Welcome to ZaraOS"
 
 # BusyBox configuration - temporarily using default for troubleshooting
 BR2_PACKAGE_BUSYBOX=y
-# BR2_PACKAGE_BUSYBOX_CONFIG="$(BR2_EXTERNAL_ZaraOS_PATH)/configs/busybox-minimal.config"
+BR2_PACKAGE_BUSYBOX_CONFIG="$(BR2_EXTERNAL_ZaraOS_PATH)/configs/busybox-minimal.config"
 
 # Enable DHCP on eth0 for automatic network configuration
 BR2_SYSTEM_DHCP="eth0"
@@ -127,6 +127,11 @@ BR2_PACKAGE_UTIL_LINUX_BINARIES=y
 
 BR2_PACKAGE_CORTEX=y
 BR2_PACKAGE_HOST_GO=y
+BR2_PACKAGE_BLUEZ5_UTILS=y
+BR2_PACKAGE_SOCAT=y
+BR2_PACKAGE_STRACE=y
+BR2_PACKAGE_USBUTILS=y
+
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Dev tools                                               │
@@ -246,3 +251,6 @@ BR2_PACKAGE_LIBGPIOD_TOOLS=y
 BR2_PACKAGE_I2C_TOOLS=y
 BR2_PACKAGE_SPI_TOOLS=y
 BR2_PACKAGE_CA_CERTIFICATES=y
+
+BR2_PACKAGE_BLUEZ5_UTILS=y
+BR2_PACKAGE_BLUEZ5_UTILS_CLIENT=y
