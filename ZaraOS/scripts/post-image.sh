@@ -76,7 +76,7 @@ FILES+=( "slot" "board-version" "tryboot.txt" "cmdline_5_a.txt" "cmdline_5_b.txt
 KERNEL=$(sed -n 's/^kernel=//p' "${BINARIES_DIR}/rpi-firmware/config.txt" 2>/dev/null || echo "Image")
 [ -f "${BINARIES_DIR}/${KERNEL}" ] && FILES+=( "${KERNEL}" )
 
-BOOT_FILES=$(printf '\t\t\t"%s",\n' "${FILES[@]}")
+BOOT_FILES=$(printf '\\t\\t\\t"%s",\\n' "${FILES[@]}")
 sed "s|#BOOT_FILES#|${BOOT_FILES}|" "${BOARD_DIR}/imaging/genimage.cfg.in" > "${GENIMAGE_CFG}"
 echo "Genimage config written (${#FILES[@]} boot files)"
 
