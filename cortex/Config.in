@@ -1,0 +1,5 @@
+config BR2_PACKAGE_CORTEX
+    bool "cortex"
+    depends on BR2_PACKAGE_HOST_GO_TARGET_ARCH_SUPPORTS
+    help
+      Cortex robot control plane API.
