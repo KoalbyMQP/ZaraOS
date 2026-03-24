@@ -1,7 +1,5 @@
 # Dev API Example
 
-This example is the team handoff setup:
-
 - pull the prebuilt ZaraOS dev API image
 - run it in Docker-in-Docker mode
 - build your ROS test images inside that container
@@ -20,7 +18,7 @@ That is the only pattern documented here.
 Set the published dev host image if you do not want the default:
 
 ```sh
-export ZARAOS_DEV_IMAGE=ghcr.io/your-org/zaraos-dev:latest
+export ZARAOS_DEV_IMAGE=ghcr.io/KoalbyMQP/zaraos-dev:latest
 ```
 
 Start the host:

@@ -50,6 +50,7 @@ func main() {
 
 	authHandler.RegisterProtected(prot)
 	handlers.NewAppsHandler(reg, log).Register(prot)
+	handlers.NewImagesHandler(st, log).Register(prot)
 	handlers.NewInstancesHandler(st, reg, log).Register(prot)
 	handlers.NewDiagnosticsHandler(st, log).Register(prot)
 	handlers.NewROSHandler(log).Register(prot)

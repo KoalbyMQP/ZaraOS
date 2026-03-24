@@ -27,4 +27,10 @@ if [ "$#" -gt 0 ]; then
     exec "$@"
 fi
 
+# When run as a devcontainer postStartCommand, just exit so setup completes.
+# When run as an entrypoint (e.g. CMD), keep the container alive.
+if [ -n "${DEVPOD:-}" ] || [ -n "${REMOTE_CONTAINERS:-}" ]; then
+    exit 0
+fi
+
 exec tail -f /dev/null
