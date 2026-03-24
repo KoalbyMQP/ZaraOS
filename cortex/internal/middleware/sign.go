@@ -13,12 +13,30 @@ import (
 	"cortex/internal/logger"
 )
 
+// isLocalhost returns true if the given host is a loopback address
+// (localhost, 127.0.0.1, or ::1).
+func isLocalhost(host string) bool {
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
 // RequireAuth verifies X-Timestamp and X-Signature on every request.
 // Delegates to the next handler on success; returns 401 on any failure.
-// Requests from 127.0.0.1 bypass auth entirely (dev CLI path, never reachable externally on Pi).
+// Requests from or to localhost bypass auth entirely (dev path).
 func RequireAuth(store *auth.Store, log *logger.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil && host == "127.0.0.1" {
+		// Bypass auth when the source (client) is localhost.
+		if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil && isLocalhost(host) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// Bypass auth when the target (Host header) is localhost,
+		// e.g. remote control plane reaching a local dev env.
+		if targetHost, _, err := net.SplitHostPort(r.Host); err == nil && isLocalhost(targetHost) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// Also handle Host header without a port.
+		if isLocalhost(r.Host) {
 			next.ServeHTTP(w, r)
 			return
 		}
