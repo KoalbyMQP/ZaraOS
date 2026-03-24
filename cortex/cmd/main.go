@@ -39,6 +39,11 @@ func main() {
 
 	authHandler := handlers.NewAuthHandler(authStore, st, log)
 	authHandler.RegisterPublic(pub)
+	pub.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	})
 
 	// Protected mux — all routes require a valid X-Signature.
 	prot := http.NewServeMux()

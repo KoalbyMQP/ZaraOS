@@ -27,7 +27,7 @@ pipeline {
     }
 
     environment {
-        DOCKER_HUB_USER = 'koalby'
+        DOCKER_HUB_USER = 'koalbymqp'
     }
 
     stages {
@@ -36,13 +36,8 @@ pipeline {
                 checkout scm
                 container('docker') {
                     sh '''
-                        # Fix git ownership issue
                         git config --global --add safe.directory /home/jenkins/agent/workspace/ZaraOS-containers_develop
-
-                        # Initialize git submodules
                         git submodule update --init --recursive
-
-                        # Verify buildroot is now populated
                         ls -la ZaraOS/buildroot/
                         echo "Buildroot files count: $(find ZaraOS/buildroot -type f | wc -l)"
                     '''
@@ -50,23 +45,45 @@ pipeline {
             }
         }
 
-        stage('Build and Push') {
+        stage('Build and Push Builder Image') {
+            steps {
+                container('docker') {
+                    script {
+                        docker.withRegistry('', 'dockerhub-credentials') {
+                            def builderImage = docker.build("${DOCKER_HUB_USER}/zaraos-builder:${env.BUILD_NUMBER}", "-f infra/containers/builder/Dockerfile .")
+
+                            builderImage.push()
+
+                            if (env.BRANCH_NAME == 'main') {
+                                builderImage.push('latest')
+                            } else if (env.BRANCH_NAME == 'develop') {
+                                builderImage.push('nightly')
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build and Push Dev Image') {
+            when {
+                anyOf {
+                    changeset "cortex/**"
+                    changeset "infra/containers/dev/**"
+                }
+            }
             steps {
                 container('docker') {
                     script {
                         docker.withRegistry('', 'dockerhub-credentials') {
                             def devImage = docker.build("${DOCKER_HUB_USER}/zaraos-dev:${env.BUILD_NUMBER}", "-f infra/containers/dev/Dockerfile .")
-                            def builderImage = docker.build("${DOCKER_HUB_USER}/zaraos-builder:${env.BUILD_NUMBER}", "-f infra/containers/builder/Dockerfile .")
 
                             devImage.push()
-                            builderImage.push()
 
                             if (env.BRANCH_NAME == 'main') {
                                 devImage.push('latest')
-                                builderImage.push('latest')
                             } else if (env.BRANCH_NAME == 'develop') {
                                 devImage.push('nightly')
-                                builderImage.push('nightly')
                             }
                         }
                     }

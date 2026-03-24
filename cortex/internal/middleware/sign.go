@@ -15,8 +15,14 @@ import (
 
 // RequireAuth verifies X-Timestamp and X-Signature on every request.
 // Delegates to the next handler on success; returns 401 on any failure.
+// Requests from 127.0.0.1 bypass auth entirely (dev CLI path, never reachable externally on Pi).
 func RequireAuth(store *auth.Store, log *logger.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil && host == "127.0.0.1" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		timestamp := r.Header.Get("X-Timestamp")
 		signature := r.Header.Get("X-Signature")
 

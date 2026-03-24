@@ -59,25 +59,10 @@ func (h *InstancesHandler) Start(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		App     string `json:"app"`
 		Version string `json:"version"`
+		Image   string `json:"image"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.App == "" {
 		writeError(w, http.StatusBadRequest, "missing required field: app")
-		return
-	}
-	if req.Version == "" {
-		req.Version = "latest"
-	}
-
-	app, ok := h.registry.GetApp(req.App)
-	if !ok {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("app %s not found", req.App))
-		return
-	}
-
-	version, ok := h.registry.ResolveVersion(req.App, req.Version)
-	if !ok {
-		writeError(w, http.StatusNotFound,
-			fmt.Sprintf("version %s not found for app %s", req.Version, req.App))
 		return
 	}
 
@@ -87,7 +72,36 @@ func (h *InstancesHandler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	imageRef := h.registry.ImageRef(app.Name, version)
+	var imageRef, version string
+
+	if req.Image != "" {
+		// Local image override: skip registry lookup entirely.
+		imageRef = req.Image
+		version = req.Version
+		if version == "" {
+			version = "dev"
+		}
+	} else {
+		if req.Version == "" {
+			req.Version = "latest"
+		}
+
+		app, ok := h.registry.GetApp(req.App)
+		if !ok {
+			writeError(w, http.StatusNotFound, fmt.Sprintf("app %s not found", req.App))
+			return
+		}
+
+		version, ok = h.registry.ResolveVersion(req.App, req.Version)
+		if !ok {
+			writeError(w, http.StatusNotFound,
+				fmt.Sprintf("version %s not found for app %s", req.Version, req.App))
+			return
+		}
+
+		imageRef = h.registry.ImageRef(app.Name, version)
+	}
+
 	inst := h.store.CreateInstance(req.App, version, imageRef)
 
 	h.log.Event("INSTANCE STARTING", "app", req.App, "version", version, "id", inst.ID, "image", imageRef)
@@ -98,8 +112,9 @@ func (h *InstancesHandler) Start(w http.ResponseWriter, r *http.Request) {
 		"image":       imageRef,
 	})
 
-	go h.runContainer(inst.ID, inst.ContainerID, imageRef, req.App, version)
+	h.runContainer(inst.ID, inst.ContainerID, imageRef, req.App, version)
 
+	inst, _ = h.store.GetInstance(inst.ID)
 	writeJSON(w, http.StatusCreated, instanceSummary(inst))
 }
 
@@ -114,9 +129,9 @@ func (h *InstancesHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	h.store.SetInstanceState(id, "stopping", nil)
 	h.log.Event("INSTANCE STOPPING", "id", id, "app", inst.App)
 
-	go h.stopContainer(id, inst.ContainerID, inst.App)
+	h.stopContainer(id, inst.ContainerID, inst.App)
 
-	writeJSON(w, http.StatusOK, map[string]any{"id": id, "state": "stopping"})
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "state": "stopped"})
 }
 
 func (h *InstancesHandler) Restart(w http.ResponseWriter, r *http.Request) {
@@ -129,7 +144,7 @@ func (h *InstancesHandler) Restart(w http.ResponseWriter, r *http.Request) {
 
 	h.log.Event("INSTANCE RESTARTING", "old_id", id, "app", inst.App, "version", inst.Version)
 
-	go h.stopContainer(id, inst.ContainerID, inst.App)
+	h.stopContainer(id, inst.ContainerID, inst.App)
 
 	newInst := h.store.CreateInstance(inst.App, inst.Version, inst.Image)
 	h.store.AddEvent("instance_started", map[string]any{
@@ -138,14 +153,15 @@ func (h *InstancesHandler) Restart(w http.ResponseWriter, r *http.Request) {
 		"version":     inst.Version,
 	})
 
-	go h.runContainer(newInst.ID, newInst.ContainerID, inst.Image, inst.App, inst.Version)
+	h.runContainer(newInst.ID, newInst.ContainerID, inst.Image, inst.App, inst.Version)
+	newInst, _ = h.store.GetInstance(newInst.ID)
 
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"old_id":     id,
 		"new_id":     newInst.ID,
 		"app":        inst.App,
 		"version":    inst.Version,
-		"state":      "starting",
+		"state":      newInst.State,
 		"started_at": newInst.StartedAt,
 	})
 }
@@ -173,7 +189,7 @@ func (h *InstancesHandler) Update(w http.ResponseWriter, r *http.Request) {
 	imageRef := h.registry.ImageRef(inst.App, latest)
 	h.log.Event("INSTANCE UPDATING", "id", id, "app", inst.App, "from", inst.Version, "to", latest)
 
-	go h.stopContainer(id, inst.ContainerID, inst.App)
+	h.stopContainer(id, inst.ContainerID, inst.App)
 
 	newInst := h.store.CreateInstance(inst.App, latest, imageRef)
 	h.store.AddEvent("instance_started", map[string]any{
@@ -182,14 +198,15 @@ func (h *InstancesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		"version":     latest,
 	})
 
-	go h.runContainer(newInst.ID, newInst.ContainerID, imageRef, inst.App, latest)
+	h.runContainer(newInst.ID, newInst.ContainerID, imageRef, inst.App, latest)
+	newInst, _ = h.store.GetInstance(newInst.ID)
 
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"old_id":      id,
 		"old_version": inst.Version,
 		"new_id":      newInst.ID,
 		"new_version": latest,
-		"state":       "starting",
+		"state":       newInst.State,
 		"started_at":  newInst.StartedAt,
 	})
 }

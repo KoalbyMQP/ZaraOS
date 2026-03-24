@@ -1,16 +1,11 @@
 {
   "name": "ZaraOS Development Environment",
-  "image": "ghcr.io/koalbymqp/zaraos-dev:latests",
-  "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {
-      "version": "latest",
-      "dockerDashComposeVersion": "v2"
-    }
-  },
+  "image": "koalbymqp/zaraos-dev:latest",
+  "forwardPorts": [8080],
   "customizations": {
     "vscode": {
       "settings": {
-        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.defaultProfile.linux": "bash",
         "files.watcherExclude": {
           "**/output/**": true,
           "**/build/**": true,
@@ -32,9 +27,6 @@
     }
   },
   "workspaceFolder": "/workspace",
-  "mounts": [
-    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
-  ],
   "postCreateCommand": "git config --global --add safe.directory /workspace",
-  "remoteUser": "vscode"
+  "postStartCommand": "bash /workspace/infra/containers/dev/start.sh"
 }
