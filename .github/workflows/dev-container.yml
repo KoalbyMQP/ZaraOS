@@ -1,0 +1,55 @@
+name: Build Dev Container
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "cortex/**"
+      - "infra/containers/dev/**"
+
+concurrency:
+  group: dev-container-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/koalbymqp/zaraos-dev
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=nightly,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=sha,prefix=,format=short
+
+      - name: Set up Buildx (Blacksmith)
+        uses: useblacksmith/setup-buildx@v1
+
+      - name: Build and push dev container
+        uses: useblacksmith/build-push-action@v2
+        with:
+          context: .
+          file: infra/containers/dev/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/koalbymqp/zaraos-dev:buildcache
+          cache-to: type=registry,ref=ghcr.io/koalbymqp/zaraos-dev:buildcache,mode=max
