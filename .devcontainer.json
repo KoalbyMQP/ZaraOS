@@ -1,6 +1,6 @@
 {
   "name": "ZaraOS Development Environment",
-  "image": "ghcr.io/koalbymqp/zaraos-dev:nightly",
+  "image": "zaraos-dev:latest",
   "privileged": true,
   "forwardPorts": [8080],
   "customizations": {
