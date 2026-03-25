@@ -1,2 +1,2 @@
 This is where the ZaraOS project will live ~ stay tuned for updates!
-And more!
+And more
