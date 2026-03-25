@@ -1,9 +1,6 @@
 {
   "name": "ZaraOS Development Environment",
-  "build": {
-    "dockerfile": "infra/containers/dev/Dockerfile",
-    "context": "."
-  },
+  "image": "ghcr.io/koalbymqp/zaraos-dev:nightly",
   "privileged": true,
   "forwardPorts": [8080],
   "customizations": {
