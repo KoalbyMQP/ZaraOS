@@ -1,4 +1,4 @@
-# Stage 1: Build Cortex server and CLI binaries
+# Stage 1: Build Cortex server and CLI binaries.
 FROM golang:1.24 AS builder
 
 WORKDIR /src
