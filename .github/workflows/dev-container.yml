@@ -41,7 +41,7 @@ jobs:
             type=sha,prefix=,format=short
 
       - name: Set up Buildx (Blacksmith)
-        uses: useblacksmith/setup-buildx@v1
+        uses: useblacksmith/setup-docker-builder@v1
 
       - name: Build and push dev container
         uses: useblacksmith/build-push-action@v2
