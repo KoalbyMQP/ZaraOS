@@ -45,7 +45,7 @@ type localImage struct {
 
 // List returns all locally available images grouped by repository.
 func (h *ImagesHandler) List(w http.ResponseWriter, r *http.Request) {
-	raw, err := nerdctl("images", "--format", "{{json .}}")
+	raw, err := containerExec("images", "--format", "{{json .}}")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list images: "+err.Error())
 		return
@@ -65,7 +65,7 @@ func (h *ImagesHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *ImagesHandler) Tags(w http.ResponseWriter, r *http.Request) {
 	name := pathToRepo(r.PathValue("name"))
 
-	raw, err := nerdctl("images", "--format", "{{json .}}")
+	raw, err := containerExec("images", "--format", "{{json .}}")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list images: "+err.Error())
 		return
@@ -113,7 +113,7 @@ func (h *ImagesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	args = append(args, ref)
 
-	out, err := nerdctl(args...)
+	out, err := containerExec(args...)
 	if err != nil {
 		msg := strings.TrimSpace(out)
 		if msg == "" {
