@@ -1,0 +1,200 @@
+# ===================================================================
+# ZaraOS QEMU Virtual Machine Buildroot Configuration
+# ===================================================================
+# Mirrors zaraos_pi5_defconfig but targets QEMU's aarch64 "virt" machine.
+# Same packages, same overlay, same Cortex — just different hardware drivers.
+#
+# Build:
+#   make BR2_EXTERNAL=../ZaraOS zaraos_qemu_defconfig
+#   make -j$(nproc)
+#
+# Run:
+#   ./ZaraOS/scripts/run-qemu-buildroot.sh
+#
+# Target: QEMU aarch64 virt machine
+# Architecture: AArch64 (64-bit ARM)
+# Kernel: 6.12 (Raspberry Pi kernel fork, same source as Pi 5)
+# ===================================================================
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ TARGET ARCHITECTURE                                             │
+# └─────────────────────────────────────────────────────────────────┘
+
+BR2_aarch64=y
+
+# Cortex-A76 — same CPU model as Pi 5 (QEMU emulates this)
+BR2_cortex_a76=y
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ TOOLCHAIN CONFIGURATION                                         │
+# └─────────────────────────────────────────────────────────────────┘
+
+BR2_TOOLCHAIN_BUILDROOT=y
+BR2_TOOLCHAIN_BUILDROOT_CXX=y
+BR2_TOOLCHAIN_BUILDROOT_FORTRAN=y
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_TARBALL=y
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_TARBALL_LOCATION="https://github.com/raspberrypi/linux/archive/stable_20250916.tar.gz"
+BR2_TOOLCHAIN_HEADERS_SAME_AS_KERNEL=y
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_12=y
+BR2_TOOLCHAIN_BUILDROOT_GLIBC=y
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ BUILD SYSTEM CONFIGURATION                                      │
+# └─────────────────────────────────────────────────────────────────┘
+
+BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_ZaraOS_PATH)/patches"
+BR2_DOWNLOAD_FORCE_CHECK_HASHES=y
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ SYSTEM CONFIGURATION                                            │
+# └─────────────────────────────────────────────────────────────────┘
+
+BR2_INIT_BUSYBOX=y
+BR2_ROOTFS_SKELETON_DEFAULT=y
+BR2_TARGET_GENERIC_HOSTNAME="zaraos"
+BR2_TARGET_GENERIC_ISSUE="Welcome to ZaraOS"
+BR2_PACKAGE_BUSYBOX=y
+BR2_PACKAGE_BUSYBOX_CONFIG="$(BR2_EXTERNAL_ZaraOS_PATH)/configs/busybox-minimal.config"
+BR2_SYSTEM_DHCP="eth0"
+
+# Filesystem overlays — production overlay + QEMU-specific overrides
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_ZaraOS_PATH)/overlays"
+
+# Post-build: same as Pi 5 but injects QEMU target info
+BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_ZaraOS_PATH)/scripts/post-build.sh"
+
+# Post-image: QEMU-specific (no SD card image, no firmware staging)
+BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_ZaraOS_PATH)/scripts/post-image-qemu.sh"
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ LINUX KERNEL CONFIGURATION                                     │
+# └─────────────────────────────────────────────────────────────────┘
+
+BR2_LINUX_KERNEL=y
+BR2_LINUX_KERNEL_CUSTOM_TARBALL=y
+
+# Same kernel source as Pi 5 — ensures identical kernel code paths
+BR2_LINUX_KERNEL_CUSTOM_TARBALL_LOCATION="https://github.com/raspberrypi/linux/archive/stable_20250916.tar.gz"
+
+# Use the architecture's default defconfig (arm64 generic "defconfig")
+# NOT bcm2712_defconfig which is Pi 5-specific.
+BR2_LINUX_KERNEL_USE_ARCH_DEFAULT_CONFIG=y
+
+# QEMU-specific kernel fragment (virtio, 4K pages, 9P, etc.)
+BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_ZaraOS_PATH)/kernel-fragments/linux-qemu-buildroot.fragment"
+
+BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
+
+# 4K pages required by QEMU virt machine (Pi 5 uses 16K)
+# This is the ONE unavoidable hardware difference.
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ PACKAGE SELECTION — IDENTICAL TO PI 5                           │
+# └─────────────────────────────────────────────────────────────────┘
+
+# Compression & filesystem tools
+BR2_PACKAGE_XZ=y
+BR2_PACKAGE_GZIP=y
+BR2_PACKAGE_E2FSPROGS=y
+BR2_PACKAGE_E2FSPROGS_RESIZE2FS=y
+BR2_PACKAGE_UTIL_LINUX=y
+BR2_PACKAGE_UTIL_LINUX_BINARIES=y
+
+# Cortex robot control plane (built from local source)
+BR2_PACKAGE_CORTEX=y
+BR2_PACKAGE_HOST_GO=y
+
+# Networking & connectivity tools
+BR2_PACKAGE_SOCAT=y
+BR2_PACKAGE_NFTABLES=y
+BR2_PACKAGE_IPTABLES=y
+
+# Debug & dev tools
+BR2_PACKAGE_STRACE=y
+BR2_PACKAGE_USBUTILS=y
+BR2_PACKAGE_SCREEN=y
+BR2_PACKAGE_TMUX=y
+
+# SSH, NTP, monitoring
+BR2_PACKAGE_OPENSSH=y
+BR2_PACKAGE_CHRONY=y
+BR2_PACKAGE_HTOP=y
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ CONTAINER RUNTIME — IDENTICAL TO PI 5                           │
+# └─────────────────────────────────────────────────────────────────┘
+
+BR2_PACKAGE_CONTAINERD=y
+BR2_PACKAGE_CRUN=y
+BR2_PACKAGE_CNI_PLUGINS=y
+BR2_PACKAGE_PROMETHEUS_NODE_EXPORTER=y
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ UI — BOOT SPLASH (works on virtio-gpu framebuffer too)          │
+# └─────────────────────────────────────────────────────────────────┘
+
+BR2_PACKAGE_PSPLASH=y
+BR2_PACKAGE_PSPLASH_IMAGE="$(BR2_EXTERNAL_ZaraOS_PATH)/artwork/zaraos_logo.png"
+BR2_PACKAGE_PSPLASH_PROGRESS_BAR=y
+BR2_PACKAGE_PSPLASH_STARTUP_MSG=y
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ PYTHON 3 DEPENDENCIES — IDENTICAL TO PI 5                       │
+# └─────────────────────────────────────────────────────────────────┘
+
+BR2_PACKAGE_LIBFFI=y
+BR2_PACKAGE_ZLIB=y
+BR2_PACKAGE_OPENSSL=y
+BR2_PACKAGE_OPENSSL_FORCE_LIBOPENSSL=y
+BR2_PACKAGE_NCURSES=y
+BR2_PACKAGE_READLINE=y
+BR2_PACKAGE_BZIP2=y
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ PACKAGES OMITTED (no hardware in QEMU to drive them)            │
+# └─────────────────────────────────────────────────────────────────┘
+#
+# These are present in zaraos_pi5_defconfig but removed here because
+# QEMU has no physical hardware for them. This is the ONLY delta.
+#
+# OMITTED: BR2_PACKAGE_RPI_FIRMWARE (no Pi GPU firmware)
+# OMITTED: BR2_PACKAGE_LINUX_FIRMWARE_BRCM_BCM43XX (no WiFi chip)
+# OMITTED: BR2_PACKAGE_WPA_SUPPLICANT (no WiFi)
+# OMITTED: BR2_PACKAGE_BLUEZ5_UTILS (no Bluetooth adapter)
+# OMITTED: BR2_PACKAGE_LIBCAMERA (no camera)
+# OMITTED: BR2_PACKAGE_LIBGPIOD / I2C_TOOLS / SPI_TOOLS (no GPIO/I2C/SPI bus)
+# OMITTED: BR2_LINUX_KERNEL_INTREE_DTS_NAME (QEMU generates its own DTB)
+# OMITTED: BR2_PACKAGE_RPI_FIRMWARE_* (no Pi bootloader)
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ KERNEL MODULE SUPPORT                                           │
+# └─────────────────────────────────────────────────────────────────┘
+
+BR2_PACKAGE_KMOD=y
+BR2_PACKAGE_KMOD_TOOLS=y
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ D-BUS (needed by several services)                              │
+# └─────────────────────────────────────────────────────────────────┘
+
+BR2_PACKAGE_CA_CERTIFICATES=y
+BR2_PACKAGE_DBUS=y
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ ROOT FILESYSTEM                                                 │
+# └─────────────────────────────────────────────────────────────────┘
+
+BR2_TARGET_ROOTFS_EXT2=y
+BR2_TARGET_ROOTFS_EXT2_4=y
+BR2_TARGET_ROOTFS_EXT2_SIZE="512M"
+BR2_ROOTFS_DEVICE_CREATION_DYNAMIC_MDEV=y
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ HOST TOOLS (minimal — no SD card image generation)              │
+# └─────────────────────────────────────────────────────────────────┘
+
+BR2_PACKAGE_HOST_PKGCONF=y
+BR2_PACKAGE_HOST_AUTOCONF=y
+BR2_PACKAGE_HOST_AUTOMAKE=y
+BR2_PACKAGE_HOST_LIBTOOL=y
+BR2_PACKAGE_HOST_KMOD_XZ=y

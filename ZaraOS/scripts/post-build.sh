@@ -17,11 +17,18 @@ fi
 . "$VERSION_FILE"
 echo "Injecting versions: BOARD=${BOARD_VERSION} OS=${OS_VERSION}"
 
+# Detect target platform from the kernel defconfig being used
+# QEMU builds use generic "defconfig", Pi 5 uses "bcm2712_defconfig"
+ZARAOS_TARGET="${ZARAOS_TARGET:-Raspberry Pi 5}"
+if grep -q 'BR2_LINUX_KERNEL_DEFCONFIG="defconfig"' "${BR2_CONFIG:-/dev/null}" 2>/dev/null; then
+    ZARAOS_TARGET="QEMU virt (aarch64)"
+fi
+
 cat > "${TARGET_DIR}/etc/zaraos-release" <<EOF
 BOARD_VERSION=${BOARD_VERSION}
 OS_VERSION=${OS_VERSION}
 HOSTNAME=zaraos
-TARGET=Raspberry Pi 5
+TARGET=${ZARAOS_TARGET}
 ARCH=aarch64
 BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF

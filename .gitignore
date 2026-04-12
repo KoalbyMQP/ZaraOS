@@ -58,3 +58,4 @@ Thumbs.db
 local.mk
 *.local
 .env.local
+/output-qemu/*
