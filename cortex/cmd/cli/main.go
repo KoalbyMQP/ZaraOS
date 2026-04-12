@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -141,24 +142,52 @@ func cmdLogs(args []string) error {
 	}
 
 	if follow {
-		// SSE stream: print each data line as it arrives.
-		buf := make([]byte, 4096)
-		for {
-			n, err := resp.Body.Read(buf)
-			if n > 0 {
-				chunk := string(buf[:n])
-				for _, line := range strings.Split(chunk, "\n") {
-					if strings.HasPrefix(line, "data: ") {
-						fmt.Println(strings.TrimPrefix(line, "data: "))
-					}
+		// SSE stream: parse event/data frames line-by-line.
+		scanner := bufio.NewScanner(resp.Body)
+		var eventType, dataStr string
+		for scanner.Scan() {
+			line := scanner.Text()
+
+			switch {
+			case strings.HasPrefix(line, "event: "):
+				eventType = strings.TrimPrefix(line, "event: ")
+			case strings.HasPrefix(line, "data: "):
+				dataStr = strings.TrimPrefix(line, "data: ")
+			case line == "":
+				// Blank line = end of frame; dispatch the event.
+				if dataStr == "" {
+					eventType = ""
+					continue
 				}
+				switch eventType {
+				case "log":
+					var evt struct {
+						Stream  string `json:"stream"`
+						Content string `json:"content"`
+					}
+					if err := json.Unmarshal([]byte(dataStr), &evt); err == nil {
+						if evt.Stream == "stderr" {
+							fmt.Printf("[stderr] %s\n", evt.Content)
+						} else {
+							fmt.Println(evt.Content)
+						}
+					} else {
+						fmt.Println(dataStr)
+					}
+				case "heartbeat":
+					// silently ignore
+				case "error":
+					fmt.Fprintf(os.Stderr, "stream: %s\n", dataStr)
+				default:
+					// Backward compat: bare data without event type.
+					fmt.Println(dataStr)
+				}
+				eventType = ""
+				dataStr = ""
 			}
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return err
-			}
+		}
+		if err := scanner.Err(); err != nil {
+			return err
 		}
 		return nil
 	}

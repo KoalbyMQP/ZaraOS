@@ -405,10 +405,40 @@ Fetch container logs. Supports one-shot and streaming modes.
 |-------|---------|-------------|
 | `tail` | `100` | Number of log lines to return |
 | `stream` | `false` | Set to `true` for Server-Sent Events streaming |
+| `since` | — | RFC3339 timestamp; only return logs after this time |
 
 **Response `200` (non-streaming):** Plain text log output.
 
-**Response `200` (streaming):** SSE stream with `data: <log-line>` events. Stays open until the client disconnects.
+**Response `200` (streaming):** SSE stream with structured events. Stays open until the client disconnects or the container exits. The `Last-Event-ID` request header is also respected for reconnection (treated as a `since` value).
+
+**SSE Event Types:**
+
+**`log`** — a container log line:
+```
+id: 42
+event: log
+data: {"ts":"2026-04-12T14:30:05.123Z","seq":42,"stream":"stdout","content":"Navigation started"}
+```
+| Field | Type | Description |
+|-------|------|-------------|
+| `ts` | string (RFC3339Nano) | Timestamp from the container runtime |
+| `seq` | int | Monotonically incrementing sequence number |
+| `stream` | string | `"stdout"` or `"stderr"` |
+| `content` | string | The log line text |
+
+**`heartbeat`** — keep-alive sent every 15 seconds:
+```
+event: heartbeat
+data: {"ts":"2026-04-12T14:30:15.000Z"}
+```
+
+**`error`** — terminal event (e.g. stream ended):
+```
+event: error
+data: {"ts":"2026-04-12T14:30:20.000Z","message":"stream ended"}
+```
+
+**Reconnection:** Store the `ts` from the last received `log` event. On reconnect, pass `?since=<ts>&stream=true` to resume from where you left off.
 
 **Response `404`:** Instance not found.
 
