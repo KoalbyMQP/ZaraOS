@@ -4,16 +4,32 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"cortex/internal/logger"
 	"cortex/internal/registry"
 	"cortex/internal/store"
 )
+
+// logEvent is a structured SSE log payload.
+type logEvent struct {
+	Timestamp string `json:"ts"`
+	Seq       int64  `json:"seq"`
+	Stream    string `json:"stream"`
+	Content   string `json:"content"`
+}
+
+// taggedLine carries a log line with its source stream label.
+type taggedLine struct {
+	stream string // "stdout", "stderr", or "heartbeat"
+	line   string
+}
 
 type InstancesHandler struct {
 	store    *store.Store
@@ -223,9 +239,16 @@ func (h *InstancesHandler) Logs(w http.ResponseWriter, r *http.Request) {
 	if t := r.URL.Query().Get("tail"); t != "" {
 		tail = t
 	}
+	since := r.URL.Query().Get("since")
 
+	// --- Non-streaming: plain text log dump ---
 	if r.URL.Query().Get("stream") != "true" {
-		out, err := nerdctl("logs", "--tail", tail, inst.ContainerID)
+		args := []string{"logs", "--tail", tail}
+		if since != "" {
+			args = append(args, "--since", since)
+		}
+		args = append(args, inst.ContainerID)
+		out, err := nerdctl(args...)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to fetch logs: "+err.Error())
 			return
@@ -236,11 +259,18 @@ func (h *InstancesHandler) Logs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// SSE streaming via nerdctl logs --follow.
+	// --- SSE streaming via nerdctl logs --follow ---
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "streaming not supported")
 		return
+	}
+
+	// Support reconnection via Last-Event-ID header (SSE spec).
+	if since == "" {
+		if lastID := r.Header.Get("Last-Event-ID"); lastID != "" {
+			since = lastID
+		}
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -248,32 +278,117 @@ func (h *InstancesHandler) Logs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	cmd := exec.CommandContext(r.Context(), "nerdctl", "logs", "--follow", "--tail", tail, inst.ContainerID)
-	stdout, err := cmd.StdoutPipe()
+	// Build nerdctl command with separate stdout/stderr and timestamps.
+	args := []string{"logs", "--follow", "--timestamps", "--tail", tail}
+	if since != "" {
+		args = append(args, "--since", since)
+	}
+	args = append(args, inst.ContainerID)
+
+	cmd := exec.CommandContext(r.Context(), "nerdctl", args...)
+	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		fmt.Fprintf(w, "data: error: %s\n\n", err.Error())
-		flusher.Flush()
+		writeSSE(w, flusher, "", "error", marshalJSON(map[string]string{
+			"ts": nowUTC(), "message": "failed to create stdout pipe: " + err.Error(),
+		}))
 		return
 	}
-	cmd.Stderr = cmd.Stdout
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		writeSSE(w, flusher, "", "error", marshalJSON(map[string]string{
+			"ts": nowUTC(), "message": "failed to create stderr pipe: " + err.Error(),
+		}))
+		return
+	}
 
 	if err := cmd.Start(); err != nil {
-		fmt.Fprintf(w, "data: error: %s\n\n", err.Error())
-		flusher.Flush()
+		writeSSE(w, flusher, "", "error", marshalJSON(map[string]string{
+			"ts": nowUTC(), "message": "failed to start log process: " + err.Error(),
+		}))
 		return
 	}
 	defer cmd.Wait()
 
-	scanner := bufio.NewScanner(stdout)
-	for scanner.Scan() {
+	// Merge stdout, stderr, and heartbeat into a single channel.
+	lines := make(chan taggedLine, 64)
+	done := make(chan struct{})
+	defer close(done)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Scanner goroutine for a pipe — tags each line with the stream name.
+	scanPipe := func(pipe io.Reader, stream string) {
+		defer wg.Done()
+		scanner := bufio.NewScanner(pipe)
+		for scanner.Scan() {
+			select {
+			case lines <- taggedLine{stream: stream, line: scanner.Text()}:
+			case <-done:
+				return
+			}
+		}
+	}
+
+	go scanPipe(stdoutPipe, "stdout")
+	go scanPipe(stderrPipe, "stderr")
+
+	// Close the lines channel once both scanners finish.
+	go func() {
+		wg.Wait()
+		close(lines)
+	}()
+
+	// Heartbeat goroutine — sends a sentinel every 15 seconds.
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				select {
+				case lines <- taggedLine{stream: "heartbeat"}:
+				case <-done:
+					return
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	// Main loop: read merged channel, write SSE events.
+	var seq int64
+	for tl := range lines {
 		select {
 		case <-r.Context().Done():
 			return
 		default:
-			fmt.Fprintf(w, "data: %s\n\n", scanner.Text())
-			flusher.Flush()
 		}
+
+		if tl.stream == "heartbeat" {
+			writeSSE(w, flusher, "", "heartbeat", marshalJSON(map[string]string{
+				"ts": nowUTC(),
+			}))
+			continue
+		}
+
+		seq++
+		ts, content, _ := parseNerdctlTimestamp(tl.line)
+
+		evt := logEvent{
+			Timestamp: ts,
+			Seq:       seq,
+			Stream:    tl.stream,
+			Content:   content,
+		}
+		writeSSE(w, flusher, strconv.FormatInt(seq, 10), "log", marshalJSON(evt))
 	}
+
+	// Both pipes closed — stream has ended.
+	writeSSE(w, flusher, "", "error", marshalJSON(map[string]string{
+		"ts": nowUTC(), "message": "stream ended",
+	}))
 }
 
 func (h *InstancesHandler) Health(w http.ResponseWriter, r *http.Request) {
@@ -417,6 +532,44 @@ func parseMemToMB(s string) float64 {
 		}
 	}
 	return 0
+}
+
+// --- SSE helpers ---
+
+// writeSSE writes a single Server-Sent Events frame and flushes.
+func writeSSE(w io.Writer, flusher http.Flusher, id string, event string, data []byte) {
+	if id != "" {
+		fmt.Fprintf(w, "id: %s\n", id)
+	}
+	fmt.Fprintf(w, "event: %s\n", event)
+	fmt.Fprintf(w, "data: %s\n\n", data)
+	flusher.Flush()
+}
+
+// parseNerdctlTimestamp splits a nerdctl --timestamps log line into the
+// RFC3339Nano timestamp and the remaining content. If parsing fails the
+// full line is returned as content with the current time.
+func parseNerdctlTimestamp(line string) (ts string, content string, ok bool) {
+	if idx := strings.IndexByte(line, ' '); idx > 0 {
+		if t, err := time.Parse(time.RFC3339Nano, line[:idx]); err == nil {
+			return t.UTC().Format(time.RFC3339Nano), line[idx+1:], true
+		}
+	}
+	return nowUTC(), line, false
+}
+
+// marshalJSON serialises v to JSON, returning "{}" on error.
+func marshalJSON(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return []byte("{}")
+	}
+	return b
+}
+
+// nowUTC returns the current time as an RFC3339Nano string.
+func nowUTC() string {
+	return time.Now().UTC().Format(time.RFC3339Nano)
 }
 
 // --- response helpers ---
