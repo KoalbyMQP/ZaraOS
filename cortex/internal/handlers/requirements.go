@@ -36,8 +36,10 @@ func (h *RequirementsHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /requirements/packages", h.ListPackages)
 	mux.HandleFunc("GET /requirements/packages/{name}", h.GetPackage)
 	mux.HandleFunc("PUT /requirements/packages/{name}", h.UpdatePackage)
+	mux.HandleFunc("DELETE /requirements/packages/{name}", h.DeletePackage)
 	mux.HandleFunc("GET /requirements/updates", h.CheckUpdates)
 	mux.HandleFunc("POST /requirements/updates/{name}", h.ApplyUpdate)
+	mux.HandleFunc("POST /requirements/discover", h.Discover)
 	mux.HandleFunc("POST /requirements/boot", h.TriggerBoot)
 }
 
@@ -245,6 +247,70 @@ func (h *RequirementsHandler) UpdatePackage(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]any{"updated": name})
 }
 
+// DeletePackage removes a package from the manifest and stops its container.
+// Refuses to delete essential packages and packages that others depend on.
+func (h *RequirementsHandler) DeletePackage(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	m := h.bootloader.Manifest()
+	if m == nil {
+		writeError(w, http.StatusNotFound, "no manifest loaded")
+		return
+	}
+
+	pkg, ok := m.GetPackage(name)
+	if !ok {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("package %q not found", name))
+		return
+	}
+
+	// Guard: never delete essential packages.
+	if pkg.Essential {
+		writeError(w, http.StatusForbidden,
+			fmt.Sprintf("cannot delete essential package %q — this would brick the robot", name))
+		return
+	}
+
+	// Guard: check if any other package depends on this one.
+	for _, other := range m.Packages {
+		if other.Name == name {
+			continue
+		}
+		for _, dep := range other.Depends {
+			if dep == name {
+				writeError(w, http.StatusConflict,
+					fmt.Sprintf("cannot delete %q — package %q depends on it", name, other.Name))
+				return
+			}
+		}
+	}
+
+	// Remove from manifest.
+	if err := m.RemovePackage(name); err != nil {
+		writeError(w, http.StatusInternalServerError, "remove failed: "+err.Error())
+		return
+	}
+	if err := m.Save(h.bootloader.ManifestPath()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save: "+err.Error())
+		return
+	}
+
+	// Stop and clean up any running containers for this package.
+	for _, inst := range h.store.ListInstances() {
+		if inst.App == name && (inst.State == "running" || inst.State == "starting") {
+			exec.Command(ContainerCLI(), "stop", inst.ContainerID).Run()
+			exec.Command(ContainerCLI(), "rm", inst.ContainerID).Run()
+			exitCode := 0
+			h.store.SetInstanceState(inst.ID, "stopped", &exitCode)
+		}
+	}
+	h.store.SetPackageManaged(name, false)
+
+	h.log.Event("PACKAGE DELETED", "package", name)
+	h.store.AddEvent("package_deleted", map[string]any{"package": name})
+
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": name})
+}
+
 // CheckUpdates returns version comparison for all packages.
 func (h *RequirementsHandler) CheckUpdates(w http.ResponseWriter, r *http.Request) {
 	updates := h.bootloader.CheckUpdates()
@@ -332,6 +398,93 @@ func (h *RequirementsHandler) ApplyUpdate(w http.ResponseWriter, r *http.Request
 		"new_version": latest,
 		"instance_id": inst.ID,
 		"state":       "running",
+	})
+}
+
+// Discover pulls a container image and reads its embedded zaraos.json,
+// then merges the package into the active manifest. This is how new
+// packages get added — each repo ships its own zaraos.json, and Cortex
+// discovers it automatically.
+//
+//	POST /requirements/discover  {"image": "koalby/motor-driver:v1.0.0"}
+func (h *RequirementsHandler) Discover(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Image   string `json:"image"`
+		Version string `json:"version"` // optional, defaults to tag from image ref
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Image == "" {
+		writeError(w, http.StatusBadRequest, "missing required field: image")
+		return
+	}
+
+	m := h.bootloader.Manifest()
+	if m == nil {
+		writeError(w, http.StatusInternalServerError, "no manifest loaded")
+		return
+	}
+
+	h.log.Info("requirements: discovering package", "image", req.Image)
+
+	// Pull the image first.
+	out, err := exec.Command(ContainerCLI(), "pull", req.Image).CombinedOutput()
+	if err != nil {
+		writeError(w, http.StatusBadGateway,
+			fmt.Sprintf("pull failed: %s — %s", strings.TrimSpace(string(out)), err.Error()))
+		return
+	}
+
+	// Read the embedded zaraos.json from the image.
+	meta, err := requirements.ReadPackageMeta(req.Image)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity,
+			fmt.Sprintf("no zaraos.json in image: %s", err.Error()))
+		return
+	}
+
+	// Determine version.
+	version := req.Version
+	if version == "" {
+		// Try to extract tag from image ref (e.g. "koalby/motor-driver:v1.0.0" -> "v1.0.0")
+		if parts := strings.SplitN(req.Image, ":", 2); len(parts) == 2 {
+			version = parts[1]
+		} else {
+			version = "latest"
+		}
+	}
+
+	// Merge into manifest.
+	pkg := meta.ToPackage(version)
+	if err := m.MergePackage(pkg); err != nil {
+		writeError(w, http.StatusBadRequest, "merge failed: "+err.Error())
+		return
+	}
+
+	// Save updated manifest.
+	if err := m.Save(h.bootloader.ManifestPath()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save manifest: "+err.Error())
+		return
+	}
+
+	h.log.Event("PACKAGE DISCOVERED",
+		"package", meta.Name,
+		"image", req.Image,
+		"version", version,
+		"depends", meta.Depends,
+	)
+	h.store.AddEvent("package_discovered", map[string]any{
+		"package": meta.Name,
+		"image":   req.Image,
+		"version": version,
+		"depends": meta.Depends,
+	})
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"package":  meta.Name,
+		"image":    meta.Image,
+		"version":  version,
+		"depends":  meta.Depends,
+		"priority": meta.Priority,
+		"merged":   true,
 	})
 }
 

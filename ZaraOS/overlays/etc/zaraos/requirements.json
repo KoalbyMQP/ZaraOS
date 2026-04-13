@@ -2,12 +2,23 @@
   "version": 1,
   "packages": [
     {
+      "name": "cmake-example",
+      "image": "koalby/cmake-example",
+      "essential": false,
+      "autostart": false,
+      "depends": [],
+      "env": {
+        "ROS_DOMAIN_ID": "42",
+        "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp"
+      },
+      "version": "latest",
+      "priority": 10
+    },
+    {
       "name": "cortex-bridge",
       "image": "koalby/cortex-bridge",
-      "version": "latest",
       "essential": true,
       "autostart": true,
-      "priority": 10,
       "depends": [],
       "env": {
         "ROS_DOMAIN_ID": "42",
@@ -17,37 +28,31 @@
         "enabled": true,
         "restart_on_failure": true,
         "max_restarts": 3
-      }
+      },
+      "version": "latest",
+      "priority": 10
     },
     {
-      "name": "startup-wizard",
-      "image": "koalby/startup-wizard",
-      "version": "latest",
-      "essential": true,
-      "autostart": true,
-      "priority": 20,
-      "depends": ["cortex-bridge"],
+      "name": "python-example",
+      "image": "koalby/python-example",
+      "essential": false,
+      "autostart": false,
+      "depends": [],
       "env": {
-        "SDL_VIDEODRIVER": "kmsdrm",
-        "SDL_AUDIODRIVER": "dummy",
         "ROS_DOMAIN_ID": "42",
         "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp"
       },
-      "health_check": {
-        "enabled": true,
-        "restart_on_failure": true,
-        "max_restarts": 3
-      },
-      "run_condition": "!file_exists:/data/.setup-done"
+      "version": "latest",
+      "priority": 10
     },
     {
       "name": "face-ui",
       "image": "koalby/face-ui",
-      "version": "latest",
       "essential": true,
       "autostart": true,
-      "priority": 20,
-      "depends": ["cortex-bridge"],
+      "depends": [
+        "cortex-bridge"
+      ],
       "env": {
         "SDL_VIDEODRIVER": "kmsdrm",
         "SDL_AUDIODRIVER": "dummy",
@@ -59,7 +64,32 @@
         "restart_on_failure": true,
         "max_restarts": 3
       },
-      "run_condition": "file_exists:/data/.setup-done"
+      "run_condition": "file_exists:/data/.setup-done",
+      "version": "latest",
+      "priority": 20
+    },
+    {
+      "name": "startup-wizard",
+      "image": "koalby/startup-wizard",
+      "essential": true,
+      "autostart": true,
+      "depends": [
+        "cortex-bridge"
+      ],
+      "env": {
+        "SDL_VIDEODRIVER": "kmsdrm",
+        "SDL_AUDIODRIVER": "dummy",
+        "ROS_DOMAIN_ID": "42",
+        "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp"
+      },
+      "health_check": {
+        "enabled": true,
+        "restart_on_failure": true,
+        "max_restarts": 3
+      },
+      "run_condition": "!file_exists:/data/.setup-done",
+      "version": "latest",
+      "priority": 20
     }
   ]
 }

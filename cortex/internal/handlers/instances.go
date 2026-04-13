@@ -16,6 +16,7 @@ import (
 
 	"cortex/internal/logger"
 	"cortex/internal/registry"
+	"cortex/internal/requirements"
 	"cortex/internal/store"
 )
 
@@ -69,13 +70,20 @@ type taggedLine struct {
 }
 
 type InstancesHandler struct {
-	store    *store.Store
-	registry *registry.Registry
-	log      *logger.Logger
+	store      *store.Store
+	registry   *registry.Registry
+	log        *logger.Logger
+	bootloader *requirements.Bootloader // set after construction via SetBootloader
 }
 
 func NewInstancesHandler(s *store.Store, r *registry.Registry, l *logger.Logger) *InstancesHandler {
 	return &InstancesHandler{store: s, registry: r, log: l}
+}
+
+// SetBootloader wires the requirements bootloader so POST /instances can
+// auto-discover zaraos.json from newly deployed images.
+func (h *InstancesHandler) SetBootloader(bl *requirements.Bootloader) {
+	h.bootloader = bl
 }
 
 func (h *InstancesHandler) Register(mux *http.ServeMux) {
@@ -173,8 +181,51 @@ func (h *InstancesHandler) Start(w http.ResponseWriter, r *http.Request) {
 
 	h.runContainer(inst.ID, inst.ContainerID, imageRef, req.App, version)
 
+	// Auto-discover: try to read zaraos.json from the image and merge
+	// it into the requirements manifest so dependencies are tracked
+	// without any extra steps from the user.
+	if h.bootloader != nil {
+		go h.autoDiscover(imageRef, version)
+	}
+
 	inst, _ = h.store.GetInstance(inst.ID)
 	writeJSON(w, http.StatusCreated, instanceSummary(inst))
+}
+
+// autoDiscover reads the embedded zaraos.json from a container image
+// and merges it into the active requirements manifest. Runs in the
+// background so it doesn't slow down the POST /instances response.
+func (h *InstancesHandler) autoDiscover(imageRef, version string) {
+	meta, err := requirements.ReadPackageMeta(imageRef)
+	if err != nil {
+		// No zaraos.json in image — that's fine, not all images have one.
+		h.log.Debug("auto-discover: no zaraos.json", "image", imageRef, "err", err)
+		return
+	}
+
+	m := h.bootloader.Manifest()
+	if m == nil {
+		return
+	}
+
+	pkg := meta.ToPackage(version)
+	if err := m.MergePackage(pkg); err != nil {
+		h.log.Warn("auto-discover: merge failed", "package", meta.Name, "err", err)
+		return
+	}
+
+	if err := m.Save(h.bootloader.ManifestPath()); err != nil {
+		h.log.Warn("auto-discover: save failed", "err", err)
+		return
+	}
+
+	h.log.Event("AUTO-DISCOVERED", "package", meta.Name, "depends", meta.Depends)
+	h.store.AddEvent("package_discovered", map[string]any{
+		"package": meta.Name,
+		"image":   imageRef,
+		"version": version,
+		"depends": meta.Depends,
+	})
 }
 
 func (h *InstancesHandler) Stop(w http.ResponseWriter, r *http.Request) {

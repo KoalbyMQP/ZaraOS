@@ -163,13 +163,95 @@ func (m *Manifest) GetPackage(name string) (Package, bool) {
 	return Package{}, false
 }
 
-// Save writes the manifest to disk as formatted JSON.
+// RecalcPriorities sets each package's Priority based on its depth in
+// the dependency graph. Depth 0 (no deps) → priority 10, depth 1 → 20,
+// etc. This means users never have to think about priority — it's
+// automatically derived from the dependency structure.
+func (m *Manifest) RecalcPriorities() {
+	names := make(map[string]bool, len(m.Packages))
+	for _, p := range m.Packages {
+		names[p.Name] = true
+	}
+
+	// BFS to compute depth for each package.
+	depth := make(map[string]int, len(m.Packages))
+	changed := true
+	for changed {
+		changed = false
+		for _, p := range m.Packages {
+			maxDepDeph := -1
+			for _, dep := range p.Depends {
+				if !names[dep] {
+					continue // unknown dep, ignore for priority calc
+				}
+				if d, ok := depth[dep]; ok && d > maxDepDeph {
+					maxDepDeph = d
+				}
+			}
+
+			var newDepth int
+			if len(p.Depends) == 0 || maxDepDeph >= 0 {
+				if maxDepDeph < 0 {
+					newDepth = 0
+				} else {
+					newDepth = maxDepDeph + 1
+				}
+			}
+
+			if old, ok := depth[p.Name]; !ok || newDepth > old {
+				depth[p.Name] = newDepth
+				changed = true
+			}
+		}
+	}
+
+	for i := range m.Packages {
+		d := depth[m.Packages[i].Name]
+		m.Packages[i].Priority = (d + 1) * 10 // depth 0 → 10, depth 1 → 20, etc.
+	}
+}
+
+// RemovePackage removes a package by name from the manifest.
+func (m *Manifest) RemovePackage(name string) error {
+	idx := -1
+	for i, pkg := range m.Packages {
+		if pkg.Name == name {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return fmt.Errorf("package %q not found", name)
+	}
+	m.Packages = append(m.Packages[:idx], m.Packages[idx+1:]...)
+	m.RecalcPriorities()
+	return nil
+}
+
+// Save writes the manifest to disk as formatted JSON. Creates a .bak
+// backup of the previous file first so a bad write can be recovered.
 func (m *Manifest) Save(path string) error {
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal manifest: %w", err)
 	}
+	data = append(data, '\n')
+
+	// Backup the existing file before overwriting.
+	if _, statErr := os.Stat(path); statErr == nil {
+		_ = copyFile(path, path+".bak")
+	}
+
 	return os.WriteFile(path, data, 0644)
+}
+
+// copyFile is a simple file copy for creating backups.
+func copyFile(src, dst string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, data, 0644)
 }
 
 // EvalRunCondition checks whether a package's run_condition is satisfied.

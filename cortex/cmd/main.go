@@ -56,6 +56,7 @@ func main() {
 	handlers.NewAppsHandler(reg, log).Register(prot)
 	handlers.NewImagesHandler(st, log).Register(prot)
 	instancesHandler := handlers.NewInstancesHandler(st, reg, log)
+	instancesHandler.SetBootloader(bootloader)
 	instancesHandler.Register(prot)
 	handlers.NewDiagnosticsHandler(st, log).Register(prot)
 	handlers.NewROSHandler(log).Register(prot)
@@ -88,15 +89,14 @@ func main() {
 	reconcileCtx, reconcileCancel := context.WithCancel(context.Background())
 	go instancesHandler.StartReconciler(reconcileCtx)
 
-	// Start the requirements boot sequence in the background — loads the
-	// manifest and starts essential packages in dependency order.
+	// Start the requirements control loop in the background — loads the
+	// manifest, starts essential packages in dependency order, then
+	// continuously reconciles the desired state against reality.
 	bootCtx, bootCancel := context.WithCancel(context.Background())
 	go func() {
 		if err := bootloader.Run(bootCtx); err != nil {
-			log.Error("requirements boot sequence failed", "err", err)
+			log.Error("requirements control loop failed", "err", err)
 		}
-		// After boot, start the health monitor to restart crashed essentials.
-		bootloader.StartHealthMonitor(bootCtx)
 	}()
 
 	go func() {
