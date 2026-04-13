@@ -64,6 +64,19 @@ func (s *Store) StartPair() (code string, expiresIn int, err error) {
 	return code, int(codeExpiry.Seconds()), nil
 }
 
+// GetPending returns the current pending pair if it exists and hasn't expired.
+// Used by the internal bridge endpoint to display the code on the robot's screen.
+func (s *Store) GetPending() *PendingPair {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pending == nil || time.Now().After(s.pending.ExpiresAt) {
+		s.pending = nil
+		return nil
+	}
+	cp := *s.pending
+	return &cp
+}
+
 // CompletePair validates the submitted code and, on success, creates a session.
 // Returns the salt so the client can derive the shared token locally.
 //
