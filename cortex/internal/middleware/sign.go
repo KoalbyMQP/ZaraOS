@@ -24,6 +24,7 @@ func isLocalhost(host string) bool {
 // Requests from or to localhost bypass auth entirely (dev path).
 func RequireAuth(store *auth.Store, log *logger.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Debug("Address", "remote", r.RemoteAddr, "host", r.Host)
 		// Bypass auth when the source (client) is localhost.
 		if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil && isLocalhost(host) {
 			next.ServeHTTP(w, r)
@@ -129,6 +130,12 @@ type responseWriter struct {
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.status = code
 	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseWriter) Flush() {
+	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {

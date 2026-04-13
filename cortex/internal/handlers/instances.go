@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -14,8 +16,44 @@ import (
 
 	"cortex/internal/logger"
 	"cortex/internal/registry"
+	"cortex/internal/requirements"
 	"cortex/internal/store"
 )
+
+// --- Container CLI auto-detection ---
+
+var (
+	cliOnce sync.Once
+	cliName string
+)
+
+// ContainerCLI returns the detected container CLI command ("docker" or "nerdctl").
+// It checks the CONTAINER_CLI env var first, then auto-detects by looking for
+// docker (preferred) and nerdctl in PATH.
+func ContainerCLI() string {
+	cliOnce.Do(func() {
+		if v := os.Getenv("CONTAINER_CLI"); v != "" {
+			cliName = v
+			return
+		}
+		if _, err := exec.LookPath("docker"); err == nil {
+			cliName = "docker"
+			return
+		}
+		if _, err := exec.LookPath("nerdctl"); err == nil {
+			cliName = "nerdctl"
+			return
+		}
+		cliName = "docker" // fallback
+	})
+	return cliName
+}
+
+// containerExec runs a container CLI command and returns combined stdout+stderr output.
+func containerExec(args ...string) (string, error) {
+	out, err := exec.Command(ContainerCLI(), args...).CombinedOutput()
+	return strings.TrimSpace(string(out)), err
+}
 
 // logEvent is a structured SSE log payload.
 type logEvent struct {
@@ -32,13 +70,20 @@ type taggedLine struct {
 }
 
 type InstancesHandler struct {
-	store    *store.Store
-	registry *registry.Registry
-	log      *logger.Logger
+	store      *store.Store
+	registry   *registry.Registry
+	log        *logger.Logger
+	bootloader *requirements.Bootloader // set after construction via SetBootloader
 }
 
 func NewInstancesHandler(s *store.Store, r *registry.Registry, l *logger.Logger) *InstancesHandler {
 	return &InstancesHandler{store: s, registry: r, log: l}
+}
+
+// SetBootloader wires the requirements bootloader so POST /instances can
+// auto-discover zaraos.json from newly deployed images.
+func (h *InstancesHandler) SetBootloader(bl *requirements.Bootloader) {
+	h.bootloader = bl
 }
 
 func (h *InstancesHandler) Register(mux *http.ServeMux) {
@@ -57,6 +102,7 @@ func (h *InstancesHandler) List(w http.ResponseWriter, r *http.Request) {
 	instances := h.store.ListInstances()
 	out := make([]map[string]any, 0, len(instances))
 	for _, inst := range instances {
+		h.reconcileInstanceState(inst)
 		out = append(out, instanceSummary(inst))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"instances": out})
@@ -68,6 +114,7 @@ func (h *InstancesHandler) Get(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "instance not found")
 		return
 	}
+	h.reconcileInstanceState(inst)
 	writeJSON(w, http.StatusOK, instanceFull(inst))
 }
 
@@ -81,6 +128,10 @@ func (h *InstancesHandler) Start(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing required field: app")
 		return
 	}
+
+	// Reconcile stale state before checking for running instances,
+	// so we don't falsely block a new start due to an already-exited container.
+	h.reconcileAll()
 
 	if h.store.HasRunningInstance(req.App) {
 		writeError(w, http.StatusConflict,
@@ -130,8 +181,51 @@ func (h *InstancesHandler) Start(w http.ResponseWriter, r *http.Request) {
 
 	h.runContainer(inst.ID, inst.ContainerID, imageRef, req.App, version)
 
+	// Auto-discover: try to read zaraos.json from the image and merge
+	// it into the requirements manifest so dependencies are tracked
+	// without any extra steps from the user.
+	if h.bootloader != nil {
+		go h.autoDiscover(imageRef, version)
+	}
+
 	inst, _ = h.store.GetInstance(inst.ID)
 	writeJSON(w, http.StatusCreated, instanceSummary(inst))
+}
+
+// autoDiscover reads the embedded zaraos.json from a container image
+// and merges it into the active requirements manifest. Runs in the
+// background so it doesn't slow down the POST /instances response.
+func (h *InstancesHandler) autoDiscover(imageRef, version string) {
+	meta, err := requirements.ReadPackageMeta(imageRef)
+	if err != nil {
+		// No zaraos.json in image — that's fine, not all images have one.
+		h.log.Debug("auto-discover: no zaraos.json", "image", imageRef, "err", err)
+		return
+	}
+
+	m := h.bootloader.Manifest()
+	if m == nil {
+		return
+	}
+
+	pkg := meta.ToPackage(version)
+	if err := m.MergePackage(pkg); err != nil {
+		h.log.Warn("auto-discover: merge failed", "package", meta.Name, "err", err)
+		return
+	}
+
+	if err := m.Save(h.bootloader.ManifestPath()); err != nil {
+		h.log.Warn("auto-discover: save failed", "err", err)
+		return
+	}
+
+	h.log.Event("AUTO-DISCOVERED", "package", meta.Name, "depends", meta.Depends)
+	h.store.AddEvent("package_discovered", map[string]any{
+		"package": meta.Name,
+		"image":   imageRef,
+		"version": version,
+		"depends": meta.Depends,
+	})
 }
 
 func (h *InstancesHandler) Stop(w http.ResponseWriter, r *http.Request) {
@@ -248,7 +342,7 @@ func (h *InstancesHandler) Logs(w http.ResponseWriter, r *http.Request) {
 			args = append(args, "--since", since)
 		}
 		args = append(args, inst.ContainerID)
-		out, err := nerdctl(args...)
+		out, err := containerExec(args...)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to fetch logs: "+err.Error())
 			return
@@ -259,7 +353,7 @@ func (h *InstancesHandler) Logs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --- SSE streaming via nerdctl logs --follow ---
+	// --- SSE streaming via container logs --follow ---
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "streaming not supported")
@@ -278,14 +372,14 @@ func (h *InstancesHandler) Logs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	// Build nerdctl command with separate stdout/stderr and timestamps.
+	// Build container CLI command with separate stdout/stderr and timestamps.
 	args := []string{"logs", "--follow", "--timestamps", "--tail", tail}
 	if since != "" {
 		args = append(args, "--since", since)
 	}
 	args = append(args, inst.ContainerID)
 
-	cmd := exec.CommandContext(r.Context(), "nerdctl", args...)
+	cmd := exec.CommandContext(r.Context(), ContainerCLI(), args...)
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		writeSSE(w, flusher, "", "error", marshalJSON(map[string]string{
@@ -399,7 +493,7 @@ func (h *InstancesHandler) Health(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out, err := nerdctl("inspect", "--format", "{{.State.Running}}", inst.ContainerID)
+	out, err := containerExec("inspect", "--format", "{{.State.Running}}", inst.ContainerID)
 	healthy := err == nil && strings.TrimSpace(out) == "true"
 	output := "OK"
 	if !healthy {
@@ -430,7 +524,7 @@ func (h *InstancesHandler) Metrics(w http.ResponseWriter, r *http.Request) {
 		uptime = int64(time.Since(inst.StartedAt).Seconds())
 	}
 
-	out, err := nerdctl("stats", "--no-stream", "--format", "{{json .}}", inst.ContainerID)
+	out, err := containerExec("stats", "--no-stream", "--format", "{{json .}}", inst.ContainerID)
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"id":             id,
@@ -449,10 +543,42 @@ func (h *InstancesHandler) Metrics(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- nerdctl helpers ---
+// --- State reconciliation ---
+
+// reconcileInstanceState checks the actual Docker daemon to see if a running instance
+// has exited, and updates its stored state if needed. This prevents stale state where
+// the instance shows "running" even after the container has exited.
+func (h *InstancesHandler) reconcileInstanceState(inst *store.Instance) {
+	// Only reconcile instances that we think are running or starting.
+	if inst.State != "running" && inst.State != "starting" {
+		return
+	}
+
+	// Check actual container state via container inspect.
+	out, err := containerExec("inspect", "--format", "{{.State.Running}}", inst.ContainerID)
+	if err != nil {
+		// Container doesn't exist or inspect failed — mark as crashed.
+		h.store.SetInstanceState(inst.ID, "crashed", nil)
+		h.store.SetInstanceError(inst.ID, "container exited: "+err.Error())
+		inst.State = "crashed"
+		inst.Error = "container exited: " + err.Error()
+		return
+	}
+
+	isRunning := strings.TrimSpace(out) == "true"
+	if !isRunning {
+		// Container exists but is not running — mark as stopped.
+		exitCode := 0
+		h.store.SetInstanceState(inst.ID, "stopped", &exitCode)
+		inst.State = "stopped"
+		inst.ExitCode = &exitCode
+	}
+}
+
+// --- container helpers ---
 
 func (h *InstancesHandler) runContainer(instanceID, containerID, image, app, version string) {
-	if _, err := nerdctl("run", "-d", "--name", containerID, "--network", "host", image); err != nil {
+	if _, err := containerExec("run", "-d", "--name", containerID, "--network", "host", image); err != nil {
 		h.log.Error("INSTANCE START FAILED", "id", instanceID, "image", image, "err", err)
 		exitCode := 1
 		h.store.SetInstanceState(instanceID, "crashed", &exitCode)
@@ -471,8 +597,8 @@ func (h *InstancesHandler) runContainer(instanceID, containerID, image, app, ver
 }
 
 func (h *InstancesHandler) stopContainer(instanceID, containerID, app string) {
-	nerdctl("stop", containerID)
-	nerdctl("rm", containerID)
+	containerExec("stop", containerID)
+	containerExec("rm", containerID)
 
 	exitCode := 0
 	h.store.SetInstanceState(instanceID, "stopped", &exitCode)
@@ -484,10 +610,46 @@ func (h *InstancesHandler) stopContainer(instanceID, containerID, app string) {
 	})
 }
 
-// nerdctl runs a nerdctl command and returns combined stdout+stderr output.
-func nerdctl(args ...string) (string, error) {
-	out, err := exec.Command("nerdctl", args...).CombinedOutput()
-	return strings.TrimSpace(string(out)), err
+// StartReconciler runs a background loop that periodically reconciles
+// all "running"/"starting" instances with the actual container runtime state.
+// This ensures Cortex never reports a stale "running" state for a container
+// that has exited between API calls.
+func (h *InstancesHandler) StartReconciler(ctx context.Context) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	h.log.Info("instance reconciler started", "interval", "10s", "cli", ContainerCLI())
+	for {
+		select {
+		case <-ctx.Done():
+			h.log.Info("instance reconciler stopped")
+			return
+		case <-ticker.C:
+			h.reconcileAll()
+		}
+	}
+}
+
+// reconcileAll checks every "running" or "starting" instance against the
+// actual container runtime and corrects any stale state.
+func (h *InstancesHandler) reconcileAll() {
+	instances := h.store.ListInstances()
+	for _, inst := range instances {
+		if inst.State != "running" && inst.State != "starting" {
+			continue
+		}
+		before := inst.State
+		h.reconcileInstanceState(inst)
+		if inst.State != before {
+			h.log.Event("RECONCILED", "id", inst.ID, "app", inst.App,
+				"from", before, "to", inst.State)
+			h.store.AddEvent("instance_reconciled", map[string]any{
+				"instance_id": inst.ID,
+				"app":         inst.App,
+				"old_state":   before,
+				"new_state":   inst.State,
+			})
+		}
+	}
 }
 
 // parseStats pulls cpu percent and memory MB from nerdctl stats JSON output.
