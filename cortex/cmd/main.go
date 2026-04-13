@@ -14,6 +14,7 @@ import (
 	"cortex/internal/logger"
 	"cortex/internal/middleware"
 	"cortex/internal/registry"
+	"cortex/internal/requirements"
 	"cortex/internal/store"
 )
 
@@ -32,6 +33,10 @@ func main() {
 
 
 	log.Info("container CLI detected", "cli", handlers.ContainerCLI())
+
+	// Requirements bootloader.
+	reqPath := os.Getenv("REQUIREMENTS_PATH")
+	bootloader := requirements.NewBootloader(st, reg, log, reqPath)
 
 	// Public mux — no auth required.
 	pub := http.NewServeMux()
@@ -56,6 +61,7 @@ func main() {
 	handlers.NewROSHandler(log).Register(prot)
 	handlers.NewEventsHandler(st, log).Register(prot)
 	handlers.NewIdentityHandler(st, log).Register(prot)
+	handlers.NewRequirementsHandler(bootloader, st, reg, log).Register(prot)
 	handlers.NewShellHandler(log).Register(prot, pub)
 
 	prot.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -82,6 +88,17 @@ func main() {
 	reconcileCtx, reconcileCancel := context.WithCancel(context.Background())
 	go instancesHandler.StartReconciler(reconcileCtx)
 
+	// Start the requirements boot sequence in the background — loads the
+	// manifest and starts essential packages in dependency order.
+	bootCtx, bootCancel := context.WithCancel(context.Background())
+	go func() {
+		if err := bootloader.Run(bootCtx); err != nil {
+			log.Error("requirements boot sequence failed", "err", err)
+		}
+		// After boot, start the health monitor to restart crashed essentials.
+		bootloader.StartHealthMonitor(bootCtx)
+	}()
+
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Error("server error", "err", err)
@@ -94,6 +111,7 @@ func main() {
 	<-quit
 
 	reconcileCancel()
+	bootCancel()
 	log.Info("shutting down — draining connections...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

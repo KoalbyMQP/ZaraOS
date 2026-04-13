@@ -63,18 +63,20 @@ type Identity struct {
 type Store struct {
 	mu sync.RWMutex
 
-	instances   map[string]*Instance
-	events      []Event
-	eventSeq    int
-	diagTests   []DiagTest
-	diagResults map[string]*DiagResult
-	identity    Identity
+	instances      map[string]*Instance
+	events         []Event
+	eventSeq       int
+	diagTests      []DiagTest
+	diagResults    map[string]*DiagResult
+	identity       Identity
+	managedPackages map[string]bool // packages managed by the requirements system
 }
 
 func New() *Store {
 	s := &Store{
-		instances:   make(map[string]*Instance),
-		diagResults: make(map[string]*DiagResult),
+		instances:      make(map[string]*Instance),
+		diagResults:    make(map[string]*DiagResult),
+		managedPackages: make(map[string]bool),
 	}
 	s.seed()
 	return s
@@ -283,4 +285,24 @@ func (s *Store) SetLocation(loc string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.identity.Location = loc
+}
+
+// --- Managed Packages ---
+
+// SetPackageManaged marks a package as managed by the requirements system.
+func (s *Store) SetPackageManaged(name string, managed bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if managed {
+		s.managedPackages[name] = true
+	} else {
+		delete(s.managedPackages, name)
+	}
+}
+
+// IsPackageManaged returns whether a package is managed by the requirements system.
+func (s *Store) IsPackageManaged(name string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.managedPackages[name]
 }
