@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "packages": [
+    {
+      "name": "cmake-example",
+      "image": "koalby/cmake-example",
+      "essential": false,
+      "autostart": false,
+      "depends": [],
+      "env": {
+        "ROS_DOMAIN_ID": "42",
+        "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp"
+      },
+      "version": "latest",
+      "priority": 10
+    },
+    {
+      "name": "cortex-bridge",
+      "image": "koalby/cortex-bridge",
+      "essential": true,
+      "autostart": true,
+      "depends": [],
+      "env": {
+        "ROS_DOMAIN_ID": "42",
+        "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp"
+      },
+      "health_check": {
+        "enabled": true,
+        "restart_on_failure": true,
+        "max_restarts": 3
+      },
+      "version": "latest",
+      "priority": 10
+    },
+    {
+      "name": "python-example",
+      "image": "koalby/python-example",
+      "essential": false,
+      "autostart": false,
+      "depends": [],
+      "env": {
+        "ROS_DOMAIN_ID": "42",
+        "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp"
+      },
+      "version": "latest",
+      "priority": 10
+    },
+    {
+      "name": "face-ui",
+      "image": "koalby/face-ui",
+      "essential": true,
+      "autostart": true,
+      "depends": [
+        "cortex-bridge"
+      ],
+      "env": {
+        "SDL_VIDEODRIVER": "kmsdrm",
+        "SDL_AUDIODRIVER": "dummy",
+        "ROS_DOMAIN_ID": "42",
+        "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp"
+      },
+      "health_check": {
+        "enabled": true,
+        "restart_on_failure": true,
+        "max_restarts": 3
+      },
+      "run_condition": "file_exists:/data/.setup-done",
+      "version": "latest",
+      "priority": 20
+    },
+    {
+      "name": "startup-wizard",
+      "image": "koalby/startup-wizard",
+      "essential": true,
+      "autostart": true,
+      "depends": [
+        "cortex-bridge"
+      ],
+      "env": {
+        "SDL_VIDEODRIVER": "kmsdrm",
+        "SDL_AUDIODRIVER": "dummy",
+        "ROS_DOMAIN_ID": "42",
+        "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp"
+      },
+      "health_check": {
+        "enabled": true,
+        "restart_on_failure": true,
+        "max_restarts": 3
+      },
+      "run_condition": "!file_exists:/data/.setup-done",
+      "version": "latest",
+      "priority": 20
+    }
+  ]
+}

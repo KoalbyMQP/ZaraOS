@@ -38,6 +38,8 @@ JOBS="${JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}"
 
 # Docker settings (for macOS)
 BUILDER_IMAGE="zaraos-builder:latest"
+BUILD_VOLUME="zaraos-qemu-build"
+DL_VOLUME="zaraos-dl-cache"
 
 # Colors
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -122,12 +124,28 @@ run_in_docker() {
 
     log_info "Running Buildroot inside Docker..."
 
-    mkdir -p "$BUILD_DIR" "$DL_DIR"
+    # Use Docker volumes for build & download cache — native ext4 inside
+    # the Linux VM, bypasses VirtioFS entirely.  This avoids the LinuxKit
+    # kernel crash (hrtimer null-deref) that bind-mounts trigger under
+    # heavy cross-compilation on Apple Silicon.
+    docker volume create "$BUILD_VOLUME" >/dev/null 2>&1 || true
+    docker volume create "$DL_VOLUME"    >/dev/null 2>&1 || true
+
+    # Output directory on the host (bind mount) — only final artifacts
+    mkdir -p "$BUILD_DIR/images"
+
+    # Mount build-zaraos.sh and Buildroot from the host so changes
+    # (including patches to Buildroot) take effect immediately
+    # without rebuilding the Docker image.
+    local builder_script="$PROJECT_ROOT/infra/containers/builder/build-zaraos.sh"
+    local buildroot_dir="$ZARAOS_DIR/buildroot"
 
     docker run --rm \
         -v "$PROJECT_ROOT:/workspace" \
-        -v "$BUILD_DIR:/tmp/zaraos-build" \
-        -v "$DL_DIR:/tmp/zaraos-dl" \
+        -v "$BUILD_VOLUME:/tmp/zaraos-build" \
+        -v "$DL_VOLUME:/tmp/zaraos-dl" \
+        -v "$builder_script:/usr/local/bin/build-zaraos.sh:ro" \
+        -v "$buildroot_dir:/opt/buildroot:ro" \
         -e "WORKSPACE_PATH=/workspace" \
         -e "EXTERNAL_PATH=/workspace/ZaraOS" \
         -e "BUILD_DIR=/tmp/zaraos-build" \
@@ -137,6 +155,23 @@ run_in_docker() {
         -e "JOBS=$JOBS" \
         "$BUILDER_IMAGE" \
         bash -c "$build_cmd"
+}
+
+copy_artifacts() {
+    # Copy final images from the Docker volume to the host.
+    # Only the images/ directory is needed — the rest of the build
+    # tree stays inside the volume for fast incremental rebuilds.
+    log_step "Copying build artifacts to host"
+
+    mkdir -p "$BUILD_DIR/images"
+
+    docker run --rm \
+        -v "$BUILD_VOLUME:/tmp/zaraos-build:ro" \
+        -v "$BUILD_DIR/images:/output" \
+        alpine:3.19 \
+        sh -c 'cp -a /tmp/zaraos-build/images/* /output/ 2>/dev/null || echo "No images found"'
+
+    log_success "Artifacts copied to $BUILD_DIR/images/"
 }
 
 # ============================================================================
@@ -213,18 +248,25 @@ ZaraOS Buildroot QEMU Build
 Usage: ./build-qemu-buildroot.sh [command]
 
 Commands:
-  (default)          Full build (configure + build)
-  --rebuild          Incremental rebuild (after code changes)
-  --rebuild-cortex   Rebuild only Cortex, then regenerate rootfs
-  --menuconfig       Open Buildroot menuconfig
-  --linux-menuconfig Open kernel menuconfig
-  --clean            Remove all build artifacts
+  (default)          Smart build (auto-detects what changed, skips the rest)
+  --rebuild          Alias for default (same incremental behavior)
+  --rebuild-cortex   Force Cortex rebuild, then regenerate rootfs
+  --menuconfig       Open Buildroot menuconfig (Linux only)
+  --linux-menuconfig Open kernel menuconfig (Linux only)
+  --clean            Remove all build artifacts and Docker volumes
   --help             Show this help
 
-Build Times:
-  First build:       30-60 minutes (downloads + compiles everything)
-  Incremental:       2-5 minutes (only rebuilds changed packages)
-  Cortex rebuild:    ~30 seconds
+Build times (macOS Docker / Linux native):
+  First build:       30-60 min  (downloads + compiles everything)
+  No changes:        ~10 sec    (Buildroot detects nothing to do)
+  Overlay changes:   ~30 sec    (regenerates rootfs image)
+  Package changes:   2-5 min    (rebuilds affected packages)
+  Cortex rebuild:    ~30 sec    (Go cross-compile + rootfs regen)
+
+Caching (macOS):
+  Build tree and download cache live in Docker volumes (not bind mounts).
+  This survives container restarts and avoids VirtioFS overhead.
+  Use --clean to wipe volumes and start fresh.
 
 After build, run:
   <build-dir>/images/run-zaraos-qemu.sh         # Terminal mode
@@ -243,9 +285,12 @@ main() {
             --menuconfig)       action="menuconfig" ;;
             --linux-menuconfig) action="linux-menuconfig" ;;
             --clean)
-                log_warn "Removing build directory: $BUILD_DIR"
+                log_warn "Removing build artifacts..."
                 rm -rf "$BUILD_DIR"
-                log_success "Cleaned (download cache preserved at $DL_DIR)"
+                # Also remove Docker volumes if they exist (macOS builds)
+                docker volume rm "$BUILD_VOLUME" 2>/dev/null && \
+                    log_info "Removed Docker build volume: $BUILD_VOLUME"
+                log_success "Cleaned (download cache preserved)"
                 exit 0
                 ;;
             --help|-h) show_help; exit 0 ;;
@@ -281,13 +326,19 @@ main() {
 
         build_docker_image
 
+        # build-zaraos.sh is incremental-aware — it skips configure if
+        # the defconfig hasn't changed, and Buildroot only rebuilds
+        # packages whose sources or configs changed.  So full/rebuild
+        # are the same command; the build tree in the Docker volume
+        # provides the cache.
         case "$action" in
-            full)
-                run_in_docker "build-zaraos.sh"
+            full|rebuild)
+                run_in_docker "bash /usr/local/bin/build-zaraos.sh"
+                copy_artifacts
                 ;;
-            rebuild)
-                # For incremental rebuilds, skip the configure step
-                run_in_docker "make -C /opt/buildroot O=/tmp/zaraos-build BR2_DL_DIR=/tmp/zaraos-dl BR2_EXTERNAL=/workspace/ZaraOS -j$JOBS"
+            rebuild-cortex)
+                run_in_docker "make -C /opt/buildroot O=/tmp/zaraos-build BR2_DL_DIR=/tmp/zaraos-dl BR2_EXTERNAL=/workspace/ZaraOS cortex-rebuild && bash /usr/local/bin/build-zaraos.sh"
+                copy_artifacts
                 ;;
             *)
                 log_error "Action '$action' requires native Linux (no Docker support)"

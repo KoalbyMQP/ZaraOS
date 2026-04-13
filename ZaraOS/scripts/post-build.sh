@@ -43,6 +43,17 @@ find "${TARGET_DIR}/etc/init.d" -type f -exec chmod +x {} +
 find "${TARGET_DIR}/usr/bin"    -type f -exec chmod +x {} +
 
 # ┌─────────────────────────────────────────────────────────────────┐
+# │ SSH HOST KEYS                                                   │
+# └─────────────────────────────────────────────────────────────────┘
+
+# sshd refuses to start if private keys are world-readable
+if [ -d "${TARGET_DIR}/etc/ssh" ]; then
+    chmod 600 "${TARGET_DIR}"/etc/ssh/ssh_host_*_key     2>/dev/null || true
+    chmod 644 "${TARGET_DIR}"/etc/ssh/ssh_host_*_key.pub 2>/dev/null || true
+    echo "SSH host key permissions fixed"
+fi
+
+# ┌─────────────────────────────────────────────────────────────────┐
 # │ SECURITY                                                        │
 # └─────────────────────────────────────────────────────────────────┘
 

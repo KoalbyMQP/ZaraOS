@@ -15,6 +15,5 @@
 # - Global build customizations
 # ===================================================================
 
-# Add custom make targets and build logic here
-# Example:
-# include $(BR2_EXTERNAL_ZaraOS_PATH)/package/*/*.mk
+# Include all custom package makefiles
+include $(sort $(wildcard $(BR2_EXTERNAL_ZaraOS_PATH)/package/*/*.mk))

@@ -1,1 +1,1 @@
-root=/dev/mmcblk0p3 rootwait console=ttyAMA10,115200 earlycon pcie_aspm=off arm64.nobti
+root=/dev/mmcblk0p3 rootwait console=ttyAMA10,115200 earlycon pcie_aspm=off arm64.nobti video=HDMI-A-1:1024x600@60

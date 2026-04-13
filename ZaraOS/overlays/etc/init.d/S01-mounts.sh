@@ -30,8 +30,10 @@ case "$1" in
             mount -t vfat "$BOOT_DEV" /boot || echo "WARNING: failed to mount /boot"
         fi
 
-        # ── Mount /data ──────────────────────────────────────
-        if [ -n "$DATA_DEV" ] && [ -b "$DATA_DEV" ]; then
+        # ── Mount /data (skip if rcS already mounted it) ────
+        if mountpoint -q /data 2>/dev/null; then
+            echo "/data already mounted (by rcS), skipping."
+        elif [ -n "$DATA_DEV" ] && [ -b "$DATA_DEV" ]; then
             # Format on first use if needed
             if ! blkid "$DATA_DEV" 2>/dev/null | grep -q 'TYPE='; then
                 echo "First boot: formatting data partition ($DATA_DEV)..."
@@ -49,14 +51,20 @@ case "$1" in
         fi
 
         # Ensure containerd storage lives on the data partition
-        mkdir -p /data/containerd
-        mkdir -p /var/lib/containerd
-        mount --bind /data/containerd /var/lib/containerd
+        # (rcS may have already done this — check before re-mounting)
+        mkdir -p /data/containerd /var/lib/containerd
+        mountpoint -q /var/lib/containerd 2>/dev/null || mount --bind /data/containerd /var/lib/containerd
 
-        # CNI config on data so it survives updates
-        mkdir -p /data/cni
-        mkdir -p /etc/cni
-        mount --bind /data/cni /etc/cni
+        # CNI config on data so it survives updates.
+        # Copy default CNI config to /data if not already there.
+        mkdir -p /data/cni/net.d /etc/cni
+        if [ ! -f /data/cni/net.d/10-zaraos.conflist ] && [ -f /etc/cni/net.d/10-zaraos.conflist ]; then
+            cp -r /etc/cni/net.d/* /data/cni/net.d/ 2>/dev/null || true
+        fi
+        mountpoint -q /etc/cni 2>/dev/null || mount --bind /data/cni /etc/cni
+
+        # Persistent config directory for setup wizard and robot settings
+        mkdir -p /data/config
 
         echo "Mounts done."
         ;;

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 
 	"cortex/internal/auth"
@@ -23,6 +24,7 @@ func NewAuthHandler(a *auth.Store, s *store.Store, l *logger.Logger) *AuthHandle
 func (h *AuthHandler) RegisterPublic(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/pair/start", h.PairStart)
 	mux.HandleFunc("POST /auth/pair/complete", h.PairComplete)
+	mux.HandleFunc("GET /internal/auth/pending", h.PairPending)
 }
 
 // RegisterProtected registers the auth management endpoints (require signing).
@@ -44,6 +46,29 @@ func (h *AuthHandler) PairStart(w http.ResponseWriter, r *http.Request) {
 		"hint", "submit via POST /auth/pair/complete",
 	)
 	writeJSON(w, http.StatusOK, map[string]any{"expires_in": expiresIn})
+}
+
+// PairPending returns the current pending pairing code for the on-device
+// ROS2 bridge to display on the robot's screen. Restricted to localhost only —
+// the code must never be readable over the network; it should only be visible
+// by physically looking at the robot's display.
+func (h *AuthHandler) PairPending(w http.ResponseWriter, r *http.Request) {
+	// Strict localhost-only guard: reject anything not from loopback.
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil || (host != "127.0.0.1" && host != "::1" && host != "localhost") {
+		writeError(w, http.StatusForbidden, "endpoint restricted to localhost")
+		return
+	}
+
+	pending := h.auth.GetPending()
+	if pending == nil {
+		writeError(w, http.StatusNotFound, "no pending code")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"code":       pending.Code,
+		"expires_at": pending.ExpiresAt,
+	})
 }
 
 func (h *AuthHandler) PairComplete(w http.ResponseWriter, r *http.Request) {
