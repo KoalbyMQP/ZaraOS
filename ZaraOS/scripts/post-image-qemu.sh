@@ -40,8 +40,8 @@ done
 
 DATA_DISK="${BINARIES_DIR}/data.ext4"
 if [ ! -f "$DATA_DISK" ]; then
-    echo "Creating persistent data disk (256MB, will auto-expand in VM)..."
-    dd if=/dev/zero of="$DATA_DISK" bs=1M count=256 status=none
+    echo "Creating persistent data disk (1GB — room for container images)..."
+    dd if=/dev/zero of="$DATA_DISK" bs=1M count=1024 status=none
     mkfs.ext4 -q -L zaraos-data "$DATA_DISK"
 fi
 
@@ -137,7 +137,7 @@ QEMU_ARGS=(
     "-drive" "file=$SCRIPT_DIR/data.ext4,format=raw,if=virtio,id=data"
 
     # Network with port forwarding
-    "-netdev" "user,id=net0,hostfwd=tcp::2222-:22,hostfwd=tcp::8080-:8080,hostfwd=tcp::9100-:9100"
+    "-netdev" "user,id=net0,hostfwd=tcp::2222-:22,hostfwd=tcp::2323-:23,hostfwd=tcp::8080-:8080,hostfwd=tcp::9100-:9100"
     "-device" "virtio-net-pci,netdev=net0"
 
     "-no-reboot"
@@ -153,6 +153,10 @@ if [ "$DISPLAY_MODE" = "gui" ]; then
         "-device" "qemu-xhci"
         "-device" "usb-kbd"
         "-device" "usb-tablet"
+        # Serial output to file so boot logs are visible even in GUI mode.
+        # Use chardev+tee so output goes to both file and QEMU's stdout.
+        "-chardev" "file,id=serial0,path=$SCRIPT_DIR/serial.log"
+        "-serial" "chardev:serial0"
     )
     # Use cocoa on macOS, gtk on Linux
     if [ "$(uname -s)" = "Darwin" ]; then
@@ -160,8 +164,10 @@ if [ "$DISPLAY_MODE" = "gui" ]; then
     else
         QEMU_ARGS+=("-display" "gtk")
     fi
-    KCMD="$KCMD console=tty0"
+    # console=tty0 first (display), console=ttyAMA0 last (serial gets all userspace output)
+    KCMD="root=/dev/vda rw console=tty0 console=ttyAMA0 loglevel=4"
     echo "Display: graphical window"
+    echo "Serial log: $SCRIPT_DIR/serial.log"
 else
     QEMU_ARGS+=("-nographic")
 fi

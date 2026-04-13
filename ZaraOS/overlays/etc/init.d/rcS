@@ -27,14 +27,14 @@ psplash < /dev/null &
 sleep 1
 
 # Make fifo writes non-blocking so a psplash crash doesn't hang boot
-echo "MSG Booting ZaraOS..." > /tmp/psplash-fifo 2>/dev/null || true
-echo "PROGRESS 5" > /tmp/psplash-fifo 2>/dev/null || true
+echo "MSG Booting ZaraOS..." > /run/psplash_fifo 2>/dev/null || true
+echo "PROGRESS 5" > /run/psplash_fifo 2>/dev/null || true
 
 # Cgroups
-echo "MSG Initializing cgroups..." > /tmp/psplash-fifo || true
+echo "MSG Initializing cgroups..." > /run/psplash_fifo || true
 mkdir -p /sys/fs/cgroup
 mount -t cgroup2 cgroup2 /sys/fs/cgroup
-echo "PROGRESS 35" > /tmp/psplash-fifo || true
+echo "PROGRESS 35" > /run/psplash_fifo || true
 
 # Hostname and logging
 [ -f /etc/hostname ] && hostname -F /etc/hostname
@@ -55,24 +55,57 @@ if [ -d /etc/modules-load.d ]; then
 fi
 
 # Network
-echo "MSG Starting network..." > /tmp/psplash-fifo || true
+echo "MSG Starting network..." > /run/psplash_fifo || true
 [ -x /sbin/ifup ] && ifup -a || ifconfig lo up
-echo "PROGRESS 50" > /tmp/psplash-fifo || true
+echo "PROGRESS 50" > /run/psplash_fifo || true
 
 # Time sync - background so it doesn't block boot
-echo "MSG Syncing time..." > /tmp/psplash-fifo || true
+echo "MSG Syncing time..." > /run/psplash_fifo || true
 ntpd -p pool.ntp.org < /dev/null &
-echo "PROGRESS 65" > /tmp/psplash-fifo || true
+echo "PROGRESS 65" > /run/psplash_fifo || true
 
-# Containerd
-echo "MSG Starting container runtime..." > /tmp/psplash-fifo 2>/dev/null || true
+# Containerd — prepare storage BEFORE starting the daemon.
+# /data must be mounted first so containerd initializes its
+# snapshotters on the persistent partition, not the rootfs.
+echo "MSG Starting container runtime..." > /run/psplash_fifo 2>/dev/null || true
+
+# Mount /data early (S01-mounts logic, inline for ordering)
+if [ -b /dev/mmcblk0p4 ]; then
+    DATA_DEV=/dev/mmcblk0p4
+elif [ -b /dev/vdb ]; then
+    DATA_DEV=/dev/vdb
+else
+    DATA_DEV=""
+fi
+if [ -n "$DATA_DEV" ] && [ -b "$DATA_DEV" ]; then
+    if ! mountpoint -q /data 2>/dev/null; then
+        if ! blkid "$DATA_DEV" 2>/dev/null | grep -q 'TYPE='; then
+            mkfs.ext4 -q -L zaraos-data "$DATA_DEV" 2>/dev/null || true
+        fi
+        mkdir -p /data
+        mount -t ext4 "$DATA_DEV" /data || true
+    fi
+fi
+
+# Bind-mount containerd + CNI storage onto /data
+mkdir -p /data/containerd /var/lib/containerd
+mountpoint -q /var/lib/containerd 2>/dev/null || mount --bind /data/containerd /var/lib/containerd
+mkdir -p /data/cni/net.d /etc/cni
+# Copy default CNI config to /data on first boot
+if [ ! -f /data/cni/net.d/10-zaraos.conflist ] && [ -f /etc/cni/net.d/10-zaraos.conflist ]; then
+    cp -r /etc/cni/net.d/* /data/cni/net.d/ 2>/dev/null || true
+fi
+mountpoint -q /etc/cni 2>/dev/null || mount --bind /data/cni /etc/cni
+mkdir -p /data/config
+
+# NOW start containerd — it will initialize on /data
 containerd < /dev/null &
 timeout=15
 while [ ! -S /run/containerd/containerd.sock ] && [ $timeout -gt 0 ]; do
     sleep 1
     timeout=$((timeout - 1))
 done
-echo "PROGRESS 85" > /tmp/psplash-fifo 2>/dev/null || true
+echo "PROGRESS 85" > /run/psplash_fifo 2>/dev/null || true
 
 # S* scripts
 for script in /etc/init.d/S*; do
@@ -87,8 +120,8 @@ if grep -q 9p /proc/filesystems 2>/dev/null; then
         echo "Host share mounted at /mnt/host"
 fi
 
-echo "PROGRESS 100" > /tmp/psplash-fifo 2>/dev/null || true
+echo "PROGRESS 100" > /run/psplash_fifo 2>/dev/null || true
 sleep 1
-echo "QUIT" > /tmp/psplash-fifo 2>/dev/null || true
+echo "QUIT" > /run/psplash_fifo 2>/dev/null || true
 
 echo "ZaraOS ready"

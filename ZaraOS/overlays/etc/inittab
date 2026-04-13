@@ -16,8 +16,10 @@
 ttyAMA10::respawn:/sbin/getty -n -L -l /usr/bin/autologin.sh ttyAMA10 115200 vt100
 ttyAMA0::respawn:/sbin/getty -n -L -l /usr/bin/autologin.sh ttyAMA0 115200 vt100
 
-# HDMI / graphical console with auto-login
-tty1::respawn:/sbin/getty -n -L -l /usr/bin/autologin.sh tty1 0 vt100
+# HDMI / graphical console — gated by startup wizard on first boot
+# startup-gate.sh defers getty until the setup UI finishes (DRM exclusive).
+# On subsequent boots it immediately execs getty (no overhead).
+tty1::respawn:/usr/bin/startup-gate.sh
 
 # Stuff to do for the 3-finger salute
 ::ctrlaltdel:/sbin/reboot

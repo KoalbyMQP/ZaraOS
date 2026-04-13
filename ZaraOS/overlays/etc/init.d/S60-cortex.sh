@@ -2,6 +2,19 @@
 
 case "$1" in
     start)
+        # Wait for first-boot setup (with timeout so cortex starts regardless).
+        # On first boot the setup wizard configures WiFi — cortex can
+        # still serve local health checks and management without it.
+        if [ ! -f /data/.setup-done ]; then
+            echo "Waiting for setup wizard (max 60s)..."
+            WAIT=60
+            while [ ! -f /data/.setup-done ] && [ $WAIT -gt 0 ]; do
+                sleep 2
+                WAIT=$((WAIT - 2))
+            done
+            [ -f /data/.setup-done ] && echo "Setup done." || echo "Setup not done yet, starting cortex anyway."
+        fi
+
         echo "Starting cortex..."
         GITHUB_ORG=KoalbyMQP \
         GITHUB_REPOS=Core \

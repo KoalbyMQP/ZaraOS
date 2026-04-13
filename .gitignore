@@ -18,6 +18,7 @@ result-*
 
 # Build artifacts and caches
 *.img
+*.tar
 *.tar.gz
 *.tar.bz2
 *.tar.xz

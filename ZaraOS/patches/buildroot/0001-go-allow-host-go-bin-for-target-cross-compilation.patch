@@ -1,0 +1,21 @@
+From: ZaraOS <zaraos@koalby.org>
+Subject: [PATCH] package/go: allow host-go-bin for target cross-compilation
+
+Buildroot's Go bootstrap stage1 only supports x86/x86_64/arm hosts,
+so BR2_PACKAGE_HOST_GO_TARGET_ARCH_SUPPORTS is never set on aarch64
+hosts (e.g., Apple Silicon / Raspberry Pi build machines). However,
+the pre-built Go binary (host-go-bin) is perfectly capable of cross-
+compiling to aarch64 targets. Fix the dependency to accept either
+path, matching how HOST_ARCH_SUPPORTS already works.
+
+--- a/package/go/Config.in.host
++++ b/package/go/Config.in.host
+@@ -2,7 +2,7 @@
+ config BR2_PACKAGE_HOST_GO_TARGET_ARCH_SUPPORTS
+ 	bool
+ 	default y
+-	depends on BR2_PACKAGE_HOST_GO_BOOTSTRAP_STAGE3_ARCH_SUPPORTS
++	depends on BR2_PACKAGE_HOST_GO_BOOTSTRAP_STAGE3_ARCH_SUPPORTS || BR2_PACKAGE_HOST_GO_BIN_HOST_ARCH_SUPPORTS
+ 	# See https://go.dev/doc/install/source#environment
+ 	# See src/go/build/syslist.go for the list of supported architectures
+ 	depends on (BR2_arm && BR2_TOOLCHAIN_SUPPORTS_PIE) || BR2_aarch64 \
