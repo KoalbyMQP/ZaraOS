@@ -29,6 +29,22 @@
         "restart_on_failure": true,
         "max_restarts": 3
       },
+      "privileged": true,
+      "devices": [
+        "/dev/i2c-1",
+        "/dev/i2c-2",
+        "/dev/spidev0.0",
+        "/dev/spidev0.1",
+        "/dev/ttyACM0",
+        "/dev/ttyUSB0",
+        "/dev/video0",
+        "/dev/gpiochip0"
+      ],
+      "volumes": [
+        "/dev:/dev",
+        "/sys:/sys:ro",
+        "/run/udev:/run/udev:ro"
+      ],
       "version": "latest",
       "priority": 10
     },

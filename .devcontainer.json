@@ -29,5 +29,5 @@
   },
   "workspaceFolder": "/workspace",
   "postCreateCommand": "git config --global --add safe.directory /workspace",
-  "postStartCommand": "bash /workspace/infra/containers/dev/start.sh"
+  "postStartCommand": "start.sh"
 }

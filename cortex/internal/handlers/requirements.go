@@ -94,10 +94,9 @@ func (h *RequirementsHandler) ListPackages(w http.ResponseWriter, r *http.Reques
 	instByApp := make(map[string]*store.Instance)
 	for _, inst := range instances {
 		// Keep the most recent (or running) instance for each app.
-		existing, ok := instByApp[inst.App]
+		_, ok := instByApp[inst.App]
 		if !ok || inst.State == "running" || inst.State == "starting" {
-			cp := inst
-			instByApp[inst.App] = &cp
+			instByApp[inst.App] = inst
 		}
 	}
 
@@ -465,6 +464,9 @@ func (h *RequirementsHandler) Discover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Read back the recalculated priority from the merged manifest.
+	merged, _ := m.GetPackage(meta.Name)
+
 	h.log.Event("PACKAGE DISCOVERED",
 		"package", meta.Name,
 		"image", req.Image,
@@ -483,7 +485,7 @@ func (h *RequirementsHandler) Discover(w http.ResponseWriter, r *http.Request) {
 		"image":    meta.Image,
 		"version":  version,
 		"depends":  meta.Depends,
-		"priority": meta.Priority,
+		"priority": merged.Priority,
 		"merged":   true,
 	})
 }

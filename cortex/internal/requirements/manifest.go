@@ -25,6 +25,9 @@ type Package struct {
 	Env          map[string]string `json:"env,omitempty"`
 	HealthCheck  *HealthCheck      `json:"health_check,omitempty"`
 	RunCondition string            `json:"run_condition,omitempty"`
+	Privileged   bool              `json:"privileged,omitempty"`
+	Devices      []string          `json:"devices,omitempty"`
+	Volumes      []string          `json:"volumes,omitempty"`
 }
 
 // HealthCheck configures automatic restart behaviour for a package.

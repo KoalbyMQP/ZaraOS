@@ -120,9 +120,13 @@ func (h *InstancesHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 func (h *InstancesHandler) Start(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		App     string `json:"app"`
-		Version string `json:"version"`
-		Image   string `json:"image"`
+		App        string            `json:"app"`
+		Version    string            `json:"version"`
+		Image      string            `json:"image"`
+		Privileged bool              `json:"privileged"`
+		Devices    []string          `json:"devices"`
+		Volumes    []string          `json:"volumes"`
+		Env        map[string]string `json:"env"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.App == "" {
 		writeError(w, http.StatusBadRequest, "missing required field: app")
@@ -179,7 +183,13 @@ func (h *InstancesHandler) Start(w http.ResponseWriter, r *http.Request) {
 		"image":       imageRef,
 	})
 
-	h.runContainer(inst.ID, inst.ContainerID, imageRef, req.App, version)
+	opts := h.resolveContainerOpts(req.App, &containerOpts{
+		Privileged: req.Privileged,
+		Devices:    req.Devices,
+		Volumes:    req.Volumes,
+		Env:        req.Env,
+	})
+	h.runContainer(inst.ID, inst.ContainerID, imageRef, req.App, version, opts)
 
 	// Auto-discover: try to read zaraos.json from the image and merge
 	// it into the requirements manifest so dependencies are tracked
@@ -263,7 +273,8 @@ func (h *InstancesHandler) Restart(w http.ResponseWriter, r *http.Request) {
 		"version":     inst.Version,
 	})
 
-	h.runContainer(newInst.ID, newInst.ContainerID, inst.Image, inst.App, inst.Version)
+	restartOpts := h.resolveContainerOpts(inst.App, nil)
+	h.runContainer(newInst.ID, newInst.ContainerID, inst.Image, inst.App, inst.Version, restartOpts)
 	newInst, _ = h.store.GetInstance(newInst.ID)
 
 	writeJSON(w, http.StatusCreated, map[string]any{
@@ -308,7 +319,8 @@ func (h *InstancesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		"version":     latest,
 	})
 
-	h.runContainer(newInst.ID, newInst.ContainerID, imageRef, inst.App, latest)
+	updateOpts := h.resolveContainerOpts(inst.App, nil)
+	h.runContainer(newInst.ID, newInst.ContainerID, imageRef, inst.App, latest, updateOpts)
 	newInst, _ = h.store.GetInstance(newInst.ID)
 
 	writeJSON(w, http.StatusCreated, map[string]any{
@@ -577,8 +589,76 @@ func (h *InstancesHandler) reconcileInstanceState(inst *store.Instance) {
 
 // --- container helpers ---
 
-func (h *InstancesHandler) runContainer(instanceID, containerID, image, app, version string) {
-	if _, err := containerExec("run", "-d", "--name", containerID, "--network", "host", image); err != nil {
+// containerOpts carries optional runtime flags for container startup.
+// These can come from the manifest (autostart) or the API request body.
+type containerOpts struct {
+	Privileged bool
+	Devices    []string
+	Volumes    []string
+	Env        map[string]string
+}
+
+// resolveContainerOpts builds containerOpts by merging the manifest entry
+// (if any) with explicit overrides from the API request. Request-level
+// fields take precedence when set.
+func (h *InstancesHandler) resolveContainerOpts(app string, reqOpts *containerOpts) containerOpts {
+	var opts containerOpts
+
+	// Start with manifest defaults.
+	if h.bootloader != nil {
+		if m := h.bootloader.Manifest(); m != nil {
+			if pkg, ok := m.GetPackage(app); ok {
+				opts.Privileged = pkg.Privileged
+				opts.Devices = pkg.Devices
+				opts.Volumes = pkg.Volumes
+				opts.Env = pkg.Env
+			}
+		}
+	}
+
+	// Merge request-level overrides.
+	if reqOpts != nil {
+		if reqOpts.Privileged {
+			opts.Privileged = true
+		}
+		if len(reqOpts.Devices) > 0 {
+			opts.Devices = append(opts.Devices, reqOpts.Devices...)
+		}
+		if len(reqOpts.Volumes) > 0 {
+			opts.Volumes = append(opts.Volumes, reqOpts.Volumes...)
+		}
+		if len(reqOpts.Env) > 0 {
+			if opts.Env == nil {
+				opts.Env = make(map[string]string)
+			}
+			for k, v := range reqOpts.Env {
+				opts.Env[k] = v
+			}
+		}
+	}
+
+	return opts
+}
+
+func (h *InstancesHandler) runContainer(instanceID, containerID, image, app, version string, opts containerOpts) {
+	args := []string{"run", "-d", "--name", containerID, "--network", "host"}
+
+	if opts.Privileged {
+		args = append(args, "--privileged")
+	}
+	for _, dev := range opts.Devices {
+		args = append(args, "--device", dev)
+	}
+	for _, vol := range opts.Volumes {
+		args = append(args, "-v", vol)
+	}
+	for k, v := range opts.Env {
+		args = append(args, "-e", k+"="+v)
+	}
+
+	args = append(args, image)
+
+	if _, err := containerExec(args...); err != nil {
 		h.log.Error("INSTANCE START FAILED", "id", instanceID, "image", image, "err", err)
 		exitCode := 1
 		h.store.SetInstanceState(instanceID, "crashed", &exitCode)

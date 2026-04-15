@@ -399,6 +399,22 @@ func (b *Bootloader) pullImage(ctx context.Context, imageRef string) error {
 
 func (b *Bootloader) runContainer(instanceID, containerID, imageRef string, pkg Package) error {
 	args := []string{"run", "-d", "--name", containerID, "--network", "host"}
+
+	// Privileged mode grants full access to the host's devices.
+	if pkg.Privileged {
+		args = append(args, "--privileged")
+	}
+
+	// Explicit device passthrough (e.g. "/dev/i2c-1", "/dev/video0").
+	for _, dev := range pkg.Devices {
+		args = append(args, "--device", dev)
+	}
+
+	// Volume mounts (e.g. "/dev:/dev", "/sys:/sys:ro").
+	for _, vol := range pkg.Volumes {
+		args = append(args, "-v", vol)
+	}
+
 	for k, v := range pkg.Env {
 		args = append(args, "-e", k+"="+v)
 	}

@@ -24,6 +24,9 @@ type PackageMeta struct {
 	Env          map[string]string `json:"env,omitempty"`
 	HealthCheck  *HealthCheck      `json:"health_check,omitempty"`
 	RunCondition string            `json:"run_condition,omitempty"`
+	Privileged   bool              `json:"privileged,omitempty"`
+	Devices      []string          `json:"devices,omitempty"`
+	Volumes      []string          `json:"volumes,omitempty"`
 }
 
 // ReadPackageMeta extracts the zaraos.json from a container image.
@@ -68,6 +71,9 @@ func (pm *PackageMeta) ToPackage(version string) Package {
 		Env:          pm.Env,
 		HealthCheck:  pm.HealthCheck,
 		RunCondition: pm.RunCondition,
+		Privileged:   pm.Privileged,
+		Devices:      pm.Devices,
+		Volumes:      pm.Volumes,
 	}
 }
 
