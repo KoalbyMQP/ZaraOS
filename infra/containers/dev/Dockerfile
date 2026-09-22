@@ -16,6 +16,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     wget \
     git \
+    ssh \
+    git-lfs \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Cortex currently shells out to `nerdctl`; point that name at Docker so

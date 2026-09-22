@@ -22,10 +22,12 @@
         "github.vscode-github-actions",
         "streetsidesoftware.code-spell-checker",
         "ms-vscode.cmake-tools",
-        "twxs.cmake",
-        "eamodio.gitlens"
+        "twxs.cmake"
       ]
     }
+  },
+  "features": {
+    "ghcr.io/devcontainers-extra/features/direnv:1": {}
   },
   "workspaceFolder": "/workspace",
   "postCreateCommand": "git config --global --add safe.directory /workspace",
