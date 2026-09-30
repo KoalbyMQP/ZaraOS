@@ -129,7 +129,10 @@
             export ARCH=arm64
 
             # Provide Linux-specific headers and macOS compat fixes to the host compiler.
-            export HOSTCFLAGS="-I${linuxHostHeaders}/include -include ${linuxHostHeaders}/include/compat-macos.h"
+            # Only needed on macOS — on Linux these shims shadow glibc's real headers.
+            ${pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
+              export HOSTCFLAGS="-I${linuxHostHeaders}/include -include ${linuxHostHeaders}/include/compat-macos.h"
+            ''}
 
             # Pre-built static aarch64 BusyBox for the QEMU initramfs
             export BUSYBOX_BIN="${busyboxStatic}/bin/busybox"
