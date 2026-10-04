@@ -561,8 +561,11 @@ func (h *InstancesHandler) Metrics(w http.ResponseWriter, r *http.Request) {
 // has exited, and updates its stored state if needed. This prevents stale state where
 // the instance shows "running" even after the container has exited.
 func (h *InstancesHandler) reconcileInstanceState(inst *store.Instance) {
-	// Only reconcile instances that we think are running or starting.
-	if inst.State != "running" && inst.State != "starting" {
+	// Only reconcile instances that we think are running. "starting" instances
+	// are owned by whoever is running `nerdctl run`, which sets the final state
+	// itself; the container may not exist yet, so inspecting it would wrongly
+	// mark the instance as crashed.
+	if inst.State != "running" {
 		return
 	}
 
@@ -691,7 +694,7 @@ func (h *InstancesHandler) stopContainer(instanceID, containerID, app string) {
 }
 
 // StartReconciler runs a background loop that periodically reconciles
-// all "running"/"starting" instances with the actual container runtime state.
+// all "running" instances with the actual container runtime state.
 // This ensures Cortex never reports a stale "running" state for a container
 // that has exited between API calls.
 func (h *InstancesHandler) StartReconciler(ctx context.Context) {
@@ -709,12 +712,12 @@ func (h *InstancesHandler) StartReconciler(ctx context.Context) {
 	}
 }
 
-// reconcileAll checks every "running" or "starting" instance against the
-// actual container runtime and corrects any stale state.
+// reconcileAll checks every "running" instance against the actual container
+// runtime and corrects any stale state.
 func (h *InstancesHandler) reconcileAll() {
 	instances := h.store.ListInstances()
 	for _, inst := range instances {
-		if inst.State != "running" && inst.State != "starting" {
+		if inst.State != "running" {
 			continue
 		}
 		before := inst.State
