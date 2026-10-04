@@ -27,7 +27,11 @@
     }
   },
   "features": {
-    "ghcr.io/devcontainers-extra/features/direnv:1": {}
+    "ghcr.io/devcontainers-extra/features/direnv:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "moby": true
+    }
   },
   "workspaceFolder": "/workspace",
   "postCreateCommand": "git config --global --add safe.directory /workspace",
