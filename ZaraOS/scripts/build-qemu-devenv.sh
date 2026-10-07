@@ -117,7 +117,7 @@ download_container_runtime() {
     if [ ! -f "$DEVENV_DIR/bin/containerd" ]; then
         log_info "Downloading containerd ${CONTAINERD_VERSION}..."
         local containerd_url="https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-static-${CONTAINERD_VERSION}-linux-arm64.tar.gz"
-        curl -L "$containerd_url" --progress-bar >&2 | tar xz -C "$DEVENV_DIR/bin" --strip-components=1
+        curl -L "$containerd_url" --progress-bar | tar xz -C "$DEVENV_DIR/bin" --strip-components=1
         log_success "containerd downloaded"
     else
         log_info "containerd already downloaded"
@@ -138,7 +138,7 @@ download_container_runtime() {
     if [ ! -f "$DEVENV_DIR/bin/nerdctl" ]; then
         log_info "Downloading nerdctl ${NERDCTL_VERSION}..."
         local nerdctl_url="https://github.com/containerd/nerdctl/releases/download/v${NERDCTL_VERSION}/nerdctl-${NERDCTL_VERSION}-linux-arm64.tar.gz"
-        curl -L "$nerdctl_url" --progress-bar >&2 | tar xz -C "$DEVENV_DIR/bin" nerdctl
+        curl -L "$nerdctl_url" --progress-bar | tar xz -C "$DEVENV_DIR/bin" nerdctl
         log_success "nerdctl downloaded"
     else
         log_info "nerdctl already downloaded"
@@ -149,7 +149,7 @@ download_container_runtime() {
         log_info "Downloading CNI plugins ${CNI_VERSION}..."
         mkdir -p "$DEVENV_DIR/cni"
         local cni_url="https://github.com/containernetworking/plugins/releases/download/v${CNI_VERSION}/cni-plugins-linux-arm64-v${CNI_VERSION}.tgz"
-        curl -L "$cni_url" --progress-bar >&2 | tar xz -C "$DEVENV_DIR/cni"
+        curl -L "$cni_url" --progress-bar | tar xz -C "$DEVENV_DIR/cni"
         log_success "CNI plugins downloaded"
     else
         log_info "CNI plugins already downloaded"
@@ -201,6 +201,7 @@ assemble_rootfs() {
     mkdir -p "$ROOTFS_DIR"/usr/bin
     mkdir -p "$ROOTFS_DIR"/usr/sbin
     mkdir -p "$ROOTFS_DIR"/var/log
+    mkdir -p "$ROOTFS_DIR"/etc/zaraos
 
     # --- Copy ZaraOS overlays ---
     log_info "Applying ZaraOS overlay files..."
@@ -210,6 +211,7 @@ assemble_rootfs() {
     cp "$overlay_dir/etc/hostname" "$ROOTFS_DIR/etc/hostname" 2>/dev/null || true
     cp "$overlay_dir/etc/motd" "$ROOTFS_DIR/etc/motd" 2>/dev/null || true
     cp "$overlay_dir/etc/zaraos-release" "$ROOTFS_DIR/etc/zaraos-release" 2>/dev/null || true
+    cp "$overlay_dir/etc/zaraos/requirements.json" "$ROOTFS_DIR/etc/zaraos/requirements.json" 2>/dev/null || true
 
     # Copy init scripts (we'll adapt them for QEMU)
     for script in "$overlay_dir"/etc/init.d/S*; do
@@ -676,7 +678,7 @@ create_launch_script() {
     # Create persistent data disk (sparse, grows on demand)
     if [ ! -f "$data_disk" ]; then
         log_info "Creating persistent data disk (4GB sparse)..."
-        /opt/homebrew/bin/qemu-img create -f qcow2 "$data_disk" 4G >&2
+        qemu-img create -f qcow2 "$data_disk" 4G >&2
     fi
 
     # Create the launch script
