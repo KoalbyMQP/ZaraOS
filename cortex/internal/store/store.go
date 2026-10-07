@@ -171,11 +171,17 @@ func (s *Store) SetInstanceState(id, state string, exitCode *int) bool {
 		return false
 	}
 	inst.State = state
-	if state == "stopped" || state == "crashed" {
+	switch state {
+	case "stopped", "crashed":
 		now := time.Now()
 		inst.StoppedAt = &now
 		inst.ExitCode = exitCode
 		inst.PID = nil
+	case "starting", "running":
+		// Clear leftovers from any earlier terminal state.
+		inst.StoppedAt = nil
+		inst.ExitCode = nil
+		inst.Error = ""
 	}
 	return true
 }
