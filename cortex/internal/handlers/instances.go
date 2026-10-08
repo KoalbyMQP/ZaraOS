@@ -595,7 +595,7 @@ func (h *InstancesHandler) Command(w http.ResponseWriter, r *http.Request) {
 	out, err := containerExec("exec", inst.ContainerID, "curl", "-iX", req.method,
 		"localhost:8000"+req.endpoint, "--data", req.body)
 	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]any{
+		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"id":    id,
 			// TODO: return curl error message, not "exit status 1"
 			"error": err.Error(),
