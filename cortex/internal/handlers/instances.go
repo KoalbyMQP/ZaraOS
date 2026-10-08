@@ -597,7 +597,6 @@ func (h *InstancesHandler) Command(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"id":    id,
-			// TODO: return curl error message, not "exit status 1"
 			"error": err.Error(),
 		})
 		return
