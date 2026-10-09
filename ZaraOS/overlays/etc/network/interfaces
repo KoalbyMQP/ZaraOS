@@ -12,8 +12,11 @@ iface lo inet loopback
 # Ethernet interface with DHCP (primary network)
 # Must be set here: this overlay file replaces the one Buildroot generates
 # from BR2_SYSTEM_DHCP, so the defconfig setting alone has no effect.
-auto eth0
+# No "auto": ifplugd brings eth0 up/down on cable plug/unplug (see
+# /etc/ifplugd/ifplugd.action), so boot never blocks waiting for a lease.
+# -b: if no lease yet, keep retrying in the background instead of exiting.
 iface eth0 inet dhcp
+    udhcpc_opts -b
 
 # Wireless interface (if available and configured)
 # Uncomment and configure if using WiFi

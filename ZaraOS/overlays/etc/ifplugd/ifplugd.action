@@ -1,0 +1,8 @@
+#!/bin/sh
+# Called by ifplugd (S41ifplugd) on link changes: ifplugd.action <iface> <up|down>
+# Must exit 0 — BusyBox ifplugd exits if its action script fails at startup.
+case "$2" in
+    up)   ifup -f "$1" ;;
+    down) ifdown -f "$1" ;;
+esac
+exit 0

@@ -60,8 +60,8 @@ echo "MSG Starting network..." > /run/psplash_fifo || true
 echo "PROGRESS 50" > /run/psplash_fifo || true
 
 # Time sync - background so it doesn't block boot
-echo "MSG Syncing time..." > /run/psplash_fifo || true
-ntpd -p pool.ntp.org < /dev/null &
+# Time sync is handled by chronyd (S49chronyd) once the network is up —
+# don't also run BusyBox ntpd, or two daemons fight over the clock.
 echo "PROGRESS 65" > /run/psplash_fifo || true
 
 # Containerd — prepare storage BEFORE starting the daemon.

@@ -41,6 +41,7 @@ echo "Written /etc/zaraos-release"
 
 find "${TARGET_DIR}/etc/init.d" -type f -exec chmod +x {} +
 find "${TARGET_DIR}/usr/bin"    -type f -exec chmod +x {} +
+chmod +x "${TARGET_DIR}/etc/ifplugd/ifplugd.action" 2>/dev/null || true
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ SSH HOST KEYS                                                   │
