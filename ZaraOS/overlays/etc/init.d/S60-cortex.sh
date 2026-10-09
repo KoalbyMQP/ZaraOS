@@ -28,7 +28,7 @@ case "$1" in
         GITHUB_REPOS=Core \
         DOCKERHUB_ORG=koalby \
         REQUIREMENTS_PATH=/data/config/requirements.json \
-        cortex < /dev/null &
+        cortex < /dev/null >> /var/log/cortex.log 2>&1 &
         ;;
     stop)
         killall cortex 2>/dev/null || true
