@@ -10,9 +10,10 @@ auto lo
 iface lo inet loopback
 
 # Ethernet interface with DHCP (primary network)
-# This is configured in the defconfig but we specify it here too
-# auto eth0
-# iface eth0 inet dhcp
+# Must be set here: this overlay file replaces the one Buildroot generates
+# from BR2_SYSTEM_DHCP, so the defconfig setting alone has no effect.
+auto eth0
+iface eth0 inet dhcp
 
 # Wireless interface (if available and configured)
 # Uncomment and configure if using WiFi

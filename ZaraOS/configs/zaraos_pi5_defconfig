@@ -187,21 +187,38 @@ BR2_PACKAGE_BZIP2=y
 # └─────────────────────────────────────────────────────────────────┘
 
 # Raspberry Pi GPU firmware and bootloader
+# NOTE: this Buildroot has no option to pick the firmware version — it always
+# uses the commit pinned in buildroot/package/rpi-firmware/rpi-firmware.mk,
+# which is older than our kernel. So DTBs/overlays must NOT come from this
+# package; they are built from the kernel source below instead.
 BR2_PACKAGE_RPI_FIRMWARE=y
-BR2_PACKAGE_RPI_FIRMWARE_CUSTOM_GIT=y
-BR2_PACKAGE_RPI_FIRMWARE_CUSTOM_REPO_URL="https://github.com/raspberrypi/firmware"
-BR2_PACKAGE_RPI_FIRMWARE_CUSTOM_REPO_VERSION="1.20250915"
 
 # Use ZaraOS Pi 5 specific boot configuration
 BR2_PACKAGE_RPI_FIRMWARE_CONFIG_FILE="$(BR2_EXTERNAL_ZaraOS_PATH)/boot-configs/config_5.txt"
 
 # Use ZaraOS Pi 5 specific kernel command line
 BR2_PACKAGE_RPI_FIRMWARE_CMDLINE_FILE="$(BR2_EXTERNAL_ZaraOS_PATH)/cmdlines/cmdline_5_a.txt"
-# Always needed for hardware support - REQUIRED FOR BOOTING!
-BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB=y
-# Re-enable overlays - needed for Pi 5 hardware support and booting
-# BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB_OVERLAYS=y
+
+# Firmware-package overlays don't match our kernel's DTBs — use kernel-built ones
+# BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB_OVERLAYS is not set
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ DEVICE TREE (built from the kernel source)                      │
+# └─────────────────────────────────────────────────────────────────┘
+
+# DTBs MUST match the kernel. A mismatched DTB (e.g. the old one from the
+# firmware package) leaves the MIP MSI controller unbound, so RP1 fails to
+# probe and USB, Ethernet and RP1 GPIO are all dead.
+# Enabling this also disables BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTBS.
+BR2_LINUX_KERNEL_DTS_SUPPORT=y
 BR2_LINUX_KERNEL_INTREE_DTS_NAME="broadcom/bcm2712-rpi-5-b broadcom/bcm2712d0-rpi-5-b"
+
+# Compile DTBs with symbols (-@) so the firmware can apply overlays to them
+BR2_LINUX_KERNEL_DTB_OVERLAY_SUPPORT=y
+
+# Overlays referenced by config_5.txt (bcm2712d0 is applied automatically by
+# the firmware on D0-stepping boards). post-image.sh moves them into overlays/.
+BR2_LINUX_KERNEL_INTREE_DTSO_NAMES="overlays/vc4-kms-v3d-pi5 overlays/bcm2712d0"
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ KERNEL MODULE SUPPORT                                           │

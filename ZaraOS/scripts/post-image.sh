@@ -67,6 +67,8 @@ done
 
 for fw_file in "${BINARIES_DIR}"/rpi-firmware/*; do
     [ -f "$fw_file" ] || continue
+    # DTBs come from the kernel build only (see zaraos_pi5_defconfig)
+    case "$fw_file" in *.dtb) continue ;; esac
     FILES+=( "$(basename "$fw_file")" )
 done
 
@@ -86,13 +88,21 @@ echo "Genimage config written (${#FILES[@]} boot files)"
 
 for fw_file in "${BINARIES_DIR}"/rpi-firmware/*; do
     [ -f "$fw_file" ] || continue
+    case "$fw_file" in *.dtb) continue ;; esac
     filename=$(basename "$fw_file")
     [ -f "${BINARIES_DIR}/${filename}" ] || cp "$fw_file" "${BINARIES_DIR}/${filename}"
 done
 
-if [ -d "${BINARIES_DIR}/rpi-firmware/overlays" ] && [ ! -d "${BINARIES_DIR}/overlays" ]; then
-    cp -r "${BINARIES_DIR}/rpi-firmware/overlays" "${BINARIES_DIR}/overlays"
-fi
+# Overlays are built from the kernel source (BR2_LINUX_KERNEL_INTREE_DTSO_NAMES)
+# and land flat in BINARIES_DIR; the firmware expects them in overlays/.
+# Rebuilt every run so stale firmware-package overlays never sneak in.
+rm -rf "${BINARIES_DIR}/overlays"
+mkdir -p "${BINARIES_DIR}/overlays"
+for dtbo in "${BINARIES_DIR}"/*.dtbo; do
+    [ -f "$dtbo" ] || continue
+    cp "$dtbo" "${BINARIES_DIR}/overlays/"
+done
+echo "Overlays: $(ls "${BINARIES_DIR}/overlays" | tr '\n' ' ')"
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ VALIDATE                                                        │
