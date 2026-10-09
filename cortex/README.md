@@ -478,6 +478,31 @@ Get CPU, memory, and uptime metrics for an instance via nerdctl stats.
 
 ---
 
+#### `POST /instances/{id}/command`
+Issue a command to an HTTP server inside a running instance. The server must be running under port :8000 in the instance.
+
+**Request:**
+```json
+{ 
+  "method": "GET", 
+  "endpoint": "/path/to/endpoint", 
+  "body": "{ ... }",
+}
+```
+
+**Response `200`:**
+```json
+{
+  "statusCode": 200,
+  "response": "{ ... }",
+}
+```
+
+**Response `400`:** Missing parameters in the request, or the endpoint in the server could not be found.
+**Response `404`:** Instance not found.
+
+---
+
 ### Diagnostics
 
 > Diagnostic tests currently return seeded/mock results — not yet running real hardware checks.
