@@ -60,3 +60,5 @@ local.mk
 *.local
 .env.local
 /output-qemu/*
+
+cortex/cortex-arm

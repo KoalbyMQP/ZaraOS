@@ -89,6 +89,12 @@
         devShells.default = pkgs.mkShell {
           depsBuildBuild = [ crossCC ];
 
+          # Nix's cc-wrapper injects hardening flags (e.g. -Werror=format-security,
+          # -D_FORTIFY_SOURCE) into every compile. Buildroot's host packages
+          # (host-m4 etc.) aren't written with those in mind and fail to build,
+          # so turn them off for this shell.
+          hardeningDisable = [ "all" ];
+
           nativeBuildInputs = with pkgs; [
             # Kernel build tools (GNU Make 4.x required, macOS ships 3.81)
             gnumake
@@ -100,6 +106,7 @@
             ncurses          # menuconfig TUI
             pkg-config
             dtc              # device tree compiler
+            unzip
 
             # QEMU for local VM testing
             qemu
@@ -112,6 +119,12 @@
             gnutar
             gzip
             rsync
+
+            # Buildroot host prerequisites (support/dependencies/dependencies.sh)
+            which
+            file
+            wget
+            python3
 
             # General
             git
@@ -127,6 +140,33 @@
               fi
             done
             export ARCH=arm64
+
+            # Putting crossCC in depsBuildBuild makes its setup hook export
+            # CC_FOR_BUILD=aarch64-...-gcc (and AR/LD/... likewise). The build
+            # machine is the host, not aarch64, so autoconf-based Buildroot host
+            # packages (e.g. host-gmp) try to run ARM binaries and fail with
+            # "Specified CC_FOR_BUILD doesn't seem to work". The cross tools are
+            # still on PATH for CROSS_COMPILE; we just drop the misleading vars.
+            unset AR_FOR_BUILD AS_FOR_BUILD CC_FOR_BUILD CXX_FOR_BUILD LD_FOR_BUILD \
+                  NM_FOR_BUILD OBJCOPY_FOR_BUILD OBJDUMP_FOR_BUILD RANLIB_FOR_BUILD \
+                  READELF_FOR_BUILD SIZE_FOR_BUILD STRINGS_FOR_BUILD STRIP_FOR_BUILD
+
+            # nixpkgs' python3 setup hook points PYTHONPATH at its own site-packages
+            # and sets sysconfig overrides. Buildroot builds its own host-python
+            # (a different version), which would pick these up and produce wheels
+            # with mismatched tags (e.g. host-python-markupsafe fails).
+            unset PYTHONPATH _PYTHON_HOST_PLATFORM _PYTHON_SYSCONFIGDATA_NAME
+
+            # Pin the kernel's host compiler to this exact Nix toolchain. Kbuild
+            # only rebuilds host tools (fixdep, mk_elfconfig, sorttable, ...) when
+            # their recorded command line changes, so with a bare "cc" it reuses
+            # binaries built elsewhere (e.g. a Docker/FHS environment) that need
+            # /lib64/ld-linux-x86-64.so.2 and can't run on NixOS. An absolute store
+            # path changes the command line whenever the toolchain changes,
+            # forcing a rebuild against the Nix glibc.
+            ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+              export HOSTCC="${pkgs.stdenv.cc}/bin/cc"
+            ''}
 
             # Provide Linux-specific headers and macOS compat fixes to the host compiler.
             # Only needed on macOS — on Linux these shims shadow glibc's real headers.

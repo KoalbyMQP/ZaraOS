@@ -135,8 +135,9 @@ hdmi_force_hotplug=1
 # Power LED behavior (0=off, 1=on, heartbeat, etc.)
 pwr_led_trigger=heartbeat
 
-# Activity LED behavior
-act_led_trigger=default
+# Activity (green) LED: heartbeat blinks as long as the kernel is alive,
+# so a frozen/solid LED means a kernel hang. Needs the dtparam= prefix.
+dtparam=act_led_trigger=heartbeat
 
 # USB power output (Pi 5 can provide more power to USB devices)
 # Max USB output current in mA (default: 1200mA)
