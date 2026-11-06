@@ -1,8 +1,17 @@
-# Simple pre-commit configuration for ZaraOS
+# pre-commit configuration for ZaraOS
+# Setup: `pipx install pre-commit && pre-commit install`
+# Run everything manually: `pre-commit run --all-files`
+# CI runs the same hooks (.github/workflows/lint.yml).
+
+# Go-based hooks (actionlint, golangci-lint) get a pinned Go toolchain downloaded by
+# pre-commit, so they don't depend on whatever Go version is installed locally.
+default_language_version:
+  golang: 1.26.10
+
 repos:
   # Basic file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -12,20 +21,48 @@ repos:
       - id: check-executables-have-shebangs
       - id: mixed-line-ending
         args: [--fix=lf]
+      - id: check-yaml
+      - id: check-json
 
   # Shell script linting
   - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.10.0.1
+    rev: v0.11.0.1
     hooks:
       - id: shellcheck
         files: \.(sh|bash)$
+
+  # GitHub Actions workflow linting
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  # Dockerfile linting
+  - repo: https://github.com/AleksaC/hadolint-py
+    rev: v2.15.1
+    hooks:
+      - id: hadolint
+
+  # Go linting and formatting for cortex (config: cortex/.golangci.yml)
+  - repo: local
+    hooks:
+      - id: golangci-lint
+        name: golangci-lint (cortex)
+        language: golang
+        additional_dependencies:
+          - github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+        entry: bash -c 'cd cortex && golangci-lint run'
+        files: ^cortex/.*\.go$
+        exclude: ^cortex/vendor/
+        pass_filenames: false
 
 # Exclude build artifacts and external dependencies
 exclude: |
   (?x)^(
     output/.*|
     tmp/.*|
-    buildroot/.*|
+    (.*/)?buildroot/.*|
     rpi-firmware/.*|
+    cortex/vendor/.*|
     .*\.(dtb|dtbo|vfat|ext[24]|img)$
   )$
