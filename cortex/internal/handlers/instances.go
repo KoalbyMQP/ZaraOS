@@ -96,6 +96,7 @@ func (h *InstancesHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /instances/{id}/logs", h.Logs)
 	mux.HandleFunc("GET /instances/{id}/health", h.Health)
 	mux.HandleFunc("GET /instances/{id}/metrics", h.Metrics)
+	mux.HandleFunc("POST /instances/{id}/command", h.Command)
 }
 
 func (h *InstancesHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -555,6 +556,63 @@ func (h *InstancesHandler) Metrics(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type CommandRequest struct {
+	method   string
+	endpoint string
+	body     string
+}
+
+func (h *InstancesHandler) Command(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	inst, ok := h.store.GetInstance(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "instance not found")
+		return
+	}
+
+	// Make sure body is present
+	if r.Body == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"id":    id,
+			"error": "Missing body",
+		})
+		return
+	}
+
+	// Parse body parameters
+	var req CommandRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"id":    id,
+			"error": "Invalid JSON payload",
+		})
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	// Send curl command to the server within the container
+	out, err := containerExec("exec", inst.ContainerID, "curl", "-iX", req.method,
+		"localhost:8000"+req.endpoint, "--data", req.body)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"id":    id,
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// Extract status code and body
+	statusCode := strings.Split(out, " ")[1] // second item on response line
+	body := strings.Split(out, "\n\n")[1]    // item after the double newline
+
+	// Return the status code and body
+	writeJSON(w, http.StatusOK, map[string]any{
+		"statusCode": statusCode,
+		"body":       body,
+	})
+}
+
 // --- State reconciliation ---
 
 // reconcileInstanceState checks the actual Docker daemon to see if a running instance
@@ -821,14 +879,14 @@ func nowUTC() string {
 
 func instanceSummary(inst *store.Instance) map[string]any {
 	return map[string]any{
-		"id":           inst.ID,
-		"app":          inst.App,
-		"version":      inst.Version,
-		"image":        inst.Image,
-		"state":        inst.State,
-		"error":        inst.Error,
-		"started_at":   inst.StartedAt,
-		"stopped_at":   inst.StoppedAt,
+		"id":         inst.ID,
+		"app":        inst.App,
+		"version":    inst.Version,
+		"image":      inst.Image,
+		"state":      inst.State,
+		"error":      inst.Error,
+		"started_at": inst.StartedAt,
+		"stopped_at": inst.StoppedAt,
 	}
 }
 
