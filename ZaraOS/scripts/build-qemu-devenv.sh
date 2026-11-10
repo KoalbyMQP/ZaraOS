@@ -804,8 +804,6 @@ LAUNCHER
 # ============================================================================
 
 main() {
-    local skip_kernel=0
-
     while [[ $# -gt 0 ]]; do
         case $1 in
             --clean)
@@ -814,7 +812,7 @@ main() {
                 log_success "Cleaned"
                 exit 0
                 ;;
-            --skip-kernel) skip_kernel=1 ;;
+            --skip-kernel) ;;
             --help)
                 echo "Usage: $0 [--clean] [--skip-kernel]"
                 exit 0

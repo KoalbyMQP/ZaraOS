@@ -31,7 +31,6 @@ BUILDROOT_DIR="$ZARAOS_DIR/buildroot"
 # Build directories
 BUILD_DIR="${BUILD_DIR:-$PROJECT_ROOT/../buildroot-qemu-build}"
 DL_DIR="${DL_DIR:-$PROJECT_ROOT/../buildroot-dl-cache}"
-OUTPUT_DIR="$BUILD_DIR/images"
 
 DEFCONFIG="zaraos_qemu_defconfig"
 JOBS="${JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}"

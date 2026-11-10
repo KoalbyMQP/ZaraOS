@@ -29,8 +29,6 @@ OUTPUT_DIR="$WORK_DIR/output"
 # Kernel configuration
 KERNEL_REPO="https://github.com/raspberrypi/linux"
 KERNEL_VERSION="stable_20250916"  # Must match zaraos_pi5_defconfig
-KERNEL_DEFCONFIG="bcm2712"
-KERNEL_FRAGMENT="linux-pi5.fragment"
 ARCH="arm64"
 CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
 
