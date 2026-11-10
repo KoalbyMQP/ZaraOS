@@ -19,6 +19,7 @@ repos:
         args: [--maxkb=5120]  # 5MB limit
       - id: check-merge-conflict
       - id: check-executables-have-shebangs
+        exclude: ^ZaraOS/overlays/usr/bin/nerdctl$  # Git LFS binary, not a script
       - id: mixed-line-ending
         args: [--fix=lf]
       - id: check-yaml

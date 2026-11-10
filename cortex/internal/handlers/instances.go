@@ -821,14 +821,14 @@ func nowUTC() string {
 
 func instanceSummary(inst *store.Instance) map[string]any {
 	return map[string]any{
-		"id":           inst.ID,
-		"app":          inst.App,
-		"version":      inst.Version,
-		"image":        inst.Image,
-		"state":        inst.State,
-		"error":        inst.Error,
-		"started_at":   inst.StartedAt,
-		"stopped_at":   inst.StoppedAt,
+		"id":         inst.ID,
+		"app":        inst.App,
+		"version":    inst.Version,
+		"image":      inst.Image,
+		"state":      inst.State,
+		"error":      inst.Error,
+		"started_at": inst.StartedAt,
+		"stopped_at": inst.StoppedAt,
 	}
 }
 

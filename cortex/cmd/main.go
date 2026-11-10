@@ -31,7 +31,6 @@ func main() {
 	apps := reg.ListApps()
 	log.Info("registry ready", "apps", len(apps))
 
-
 	log.Info("container CLI detected", "cli", handlers.ContainerCLI())
 
 	// Requirements bootloader.
@@ -120,7 +119,6 @@ func main() {
 	}
 	log.Info("server stopped")
 }
-
 
 func printBanner(log *logger.Logger) {
 	log.Banner(

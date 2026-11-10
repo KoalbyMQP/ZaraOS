@@ -20,9 +20,9 @@ type ticket struct {
 }
 
 type ShellHandler struct {
-	log     *logger.Logger
-	mu      sync.Mutex
-	tickets map[string]ticket
+	log      *logger.Logger
+	mu       sync.Mutex
+	tickets  map[string]ticket
 	upgrader websocket.Upgrader
 }
 

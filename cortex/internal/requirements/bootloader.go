@@ -48,8 +48,8 @@ type Bootloader struct {
 
 // restartState tracks per-package restart history for exponential backoff.
 type restartState struct {
-	count      int       // total restarts since last stable period
-	lastCrash  time.Time // when the last restart was attempted
+	count       int       // total restarts since last stable period
+	lastCrash   time.Time // when the last restart was attempted
 	stableSince time.Time // when the package last started successfully
 }
 

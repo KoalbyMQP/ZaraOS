@@ -1,13 +1,13 @@
 package middleware
 
 import (
+	"bufio"
 	"bytes"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
-	"bufio"
-    "fmt"
-    "net"
 
 	"cortex/internal/auth"
 	"cortex/internal/logger"
@@ -139,9 +139,9 @@ func (rw *responseWriter) Flush() {
 }
 
 func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-    h, ok := rw.ResponseWriter.(http.Hijacker)
-    if !ok {
-        return nil, nil, fmt.Errorf("ResponseWriter does not implement http.Hijacker")
-    }
-    return h.Hijack()
+	h, ok := rw.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("ResponseWriter does not implement http.Hijacker")
+	}
+	return h.Hijack()
 }

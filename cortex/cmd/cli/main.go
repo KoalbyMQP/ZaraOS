@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	cortexAddr  = "http://127.0.0.1:8080"
-	lastIDFile  = ".cortex-last"
+	cortexAddr = "http://127.0.0.1:8080"
+	lastIDFile = ".cortex-last"
 )
 
 func main() {

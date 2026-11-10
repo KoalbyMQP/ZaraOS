@@ -63,19 +63,19 @@ type Identity struct {
 type Store struct {
 	mu sync.RWMutex
 
-	instances      map[string]*Instance
-	events         []Event
-	eventSeq       int
-	diagTests      []DiagTest
-	diagResults    map[string]*DiagResult
-	identity       Identity
+	instances       map[string]*Instance
+	events          []Event
+	eventSeq        int
+	diagTests       []DiagTest
+	diagResults     map[string]*DiagResult
+	identity        Identity
 	managedPackages map[string]bool // packages managed by the requirements system
 }
 
 func New() *Store {
 	s := &Store{
-		instances:      make(map[string]*Instance),
-		diagResults:    make(map[string]*DiagResult),
+		instances:       make(map[string]*Instance),
+		diagResults:     make(map[string]*DiagResult),
 		managedPackages: make(map[string]bool),
 	}
 	s.seed()
