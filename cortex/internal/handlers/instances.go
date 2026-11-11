@@ -100,6 +100,7 @@ func (h *InstancesHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /instances/{id}/health", h.Health)
 	mux.HandleFunc("GET /instances/{id}/metrics", h.Metrics)
 	mux.HandleFunc("POST /instances/{id}/command", h.Command)
+	mux.HandleFunc("GET /instances/{id}/commands", h.ListCommands)
 }
 
 func (h *InstancesHandler) List(w http.ResponseWriter, r *http.Request) {

@@ -36,7 +36,13 @@ const (
 	commandTimeout        = 5 * time.Second
 )
 
+// User command names must start with a letter or digit. Names starting with
+// "_" are reserved for SDK built-ins, which the Driver Station can't call
+// directly through POST /command.
 var commandNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`)
+
+// describeCommand is the SDK built-in that returns the app's command list.
+const describeCommand = "_commands"
 
 // commandTransport delivers a command to an instance and returns the app's
 // raw JSON reply and the HTTP-equivalent status it reported.
@@ -153,16 +159,11 @@ func (h *InstancesHandler) commandEnv(instanceID string) map[string]string {
 // Response: {"instance", "command", "transport", "forward_us", "reply": <app reply>}
 // where the app reply is {"ok", "result", "error", "handler_us"}.
 func (h *InstancesHandler) Command(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	inst, ok := h.store.GetInstance(id)
+	inst, ok := h.runningInstance(w, r)
 	if !ok {
-		writeError(w, http.StatusNotFound, "instance not found")
 		return
 	}
-	if inst.State != "running" {
-		writeError(w, http.StatusConflict, "instance is "+inst.State)
-		return
-	}
+	id := inst.ID
 
 	var req struct {
 		Command string          `json:"command"`
@@ -189,11 +190,7 @@ func (h *InstancesHandler) Command(w http.ResponseWriter, r *http.Request) {
 	forwardUS := time.Since(start).Microseconds()
 
 	if err != nil {
-		code := http.StatusBadGateway
-		if errors.Is(err, context.DeadlineExceeded) {
-			code = http.StatusGatewayTimeout
-		}
-		writeJSON(w, code, map[string]any{
+		writeJSON(w, transportErrorStatus(err), map[string]any{
 			"instance":   id,
 			"command":    req.Command,
 			"transport":  h.commands.Name(),
@@ -215,4 +212,86 @@ func (h *InstancesHandler) Command(w http.ResponseWriter, r *http.Request) {
 		out["reply"] = string(reply)
 	}
 	writeJSON(w, status, out)
+}
+
+// ListCommands handles GET /instances/{id}/commands: what commands the app
+// accepts and their parameters, so the Driver Station can build controls.
+//
+// Response: {"instance", "transport", "commands": [{"name", "params", "doc"}]}
+// where each param is {"name", "required", "type"?, "default"?}.
+//
+// It is sent as the reserved built-in command describeCommand over the normal
+// transport, so it works the same for http and ros with no extra plumbing.
+func (h *InstancesHandler) ListCommands(w http.ResponseWriter, r *http.Request) {
+	inst, ok := h.runningInstance(w, r)
+	if !ok {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), commandTimeout)
+	defer cancel()
+
+	status, raw, err := h.commands.Send(ctx, inst, describeCommand, []byte("{}"))
+	if err != nil {
+		writeJSON(w, transportErrorStatus(err), map[string]any{
+			"instance":  inst.ID,
+			"transport": h.commands.Name(),
+			"error":     "could not reach instance command server: " + err.Error(),
+		})
+		return
+	}
+
+	var reply struct {
+		OK     bool            `json:"ok"`
+		Result json.RawMessage `json:"result"`
+		Error  string          `json:"error"`
+	}
+	if err := json.Unmarshal(raw, &reply); err != nil {
+		writeError(w, http.StatusBadGateway, "instance returned an invalid reply")
+		return
+	}
+	if status != http.StatusOK || !reply.OK {
+		msg := reply.Error
+		if status == http.StatusNotFound {
+			// Older SDK without the built-in: report it plainly.
+			msg = "app does not support command discovery: " + msg
+		}
+		writeJSON(w, status, map[string]any{
+			"instance":  inst.ID,
+			"transport": h.commands.Name(),
+			"error":     msg,
+		})
+		return
+	}
+
+	commands := reply.Result
+	if len(commands) == 0 || string(commands) == "null" {
+		commands = json.RawMessage("[]")
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"instance":  inst.ID,
+		"transport": h.commands.Name(),
+		"commands":  commands,
+	})
+}
+
+// runningInstance looks up {id} and writes 404/409 if it can't take commands.
+func (h *InstancesHandler) runningInstance(w http.ResponseWriter, r *http.Request) (*store.Instance, bool) {
+	inst, ok := h.store.GetInstance(r.PathValue("id"))
+	if !ok {
+		writeError(w, http.StatusNotFound, "instance not found")
+		return nil, false
+	}
+	if inst.State != "running" {
+		writeError(w, http.StatusConflict, "instance is "+inst.State)
+		return nil, false
+	}
+	return inst, true
+}
+
+func transportErrorStatus(err error) int {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return http.StatusGatewayTimeout
+	}
+	return http.StatusBadGateway
 }

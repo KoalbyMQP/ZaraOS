@@ -16,6 +16,7 @@ Every handler reply has the same shape regardless of transport:
 """
 
 import inspect
+import json
 import os
 import re
 import threading
@@ -26,12 +27,19 @@ __all__ = ["command", "commands", "dispatch", "start", "service_name"]
 _handlers = {}
 _lock = threading.Lock()
 
+# Built-in commands answered by the SDK itself. Names starting with "_" are
+# reserved for these; cortex rejects them in POST /command, so the Driver
+# Station reaches them only through dedicated endpoints (GET /commands).
+DESCRIBE = "_commands"
+
 
 def command(name=None):
     """Register a function as a command. The command name defaults to the function name."""
 
     def deco(fn):
         cmd = name or fn.__name__
+        if cmd.startswith("_"):
+            raise ValueError("command names starting with '_' are reserved: %r" % cmd)
         with _lock:
             _handlers[cmd] = fn
         return fn
@@ -51,10 +59,19 @@ def commands():
             if p.annotation is not inspect.Parameter.empty:
                 param["type"] = getattr(p.annotation, "__name__", str(p.annotation))
             if p.default is not inspect.Parameter.empty:
-                param["default"] = p.default
+                param["default"] = _json_safe(p.default)
             params.append(param)
         out.append({"name": cmd, "params": params, "doc": inspect.getdoc(fn)})
     return out
+
+
+def _json_safe(value):
+    """Defaults go over the wire as JSON; fall back to repr for anything else."""
+    try:
+        json.dumps(value)
+        return value
+    except (TypeError, ValueError):
+        return repr(value)
 
 
 def _reply(status, ok, result=None, error=None, t0=None):
@@ -64,6 +81,8 @@ def _reply(status, ok, result=None, error=None, t0=None):
 
 def dispatch(name, args):
     """Run a command. Returns (http_status, reply_dict). Never raises."""
+    if name == DESCRIBE:
+        return _reply(200, True, result=commands())
     with _lock:
         fn = _handlers.get(name)
     if fn is None:
