@@ -20,6 +20,7 @@ type Instance struct {
 	StoppedAt   *time.Time
 	PID         *int
 	ExitCode    *int
+	CommandPort int // loopback port the app's command server listens on (0 = none)
 }
 
 // --- Event ---
@@ -184,6 +185,32 @@ func (s *Store) SetInstanceState(id, state string, exitCode *int) bool {
 		inst.Error = ""
 	}
 	return true
+}
+
+// AllocateCommandPort assigns the lowest port in [min, max] that is not held
+// by another starting/running instance and for which isFree returns true.
+// Holding the lock across the scan keeps concurrent starts from colliding.
+func (s *Store) AllocateCommandPort(id string, min, max int, isFree func(int) bool) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	inst, ok := s.instances[id]
+	if !ok {
+		return 0, fmt.Errorf("instance %s not found", id)
+	}
+	held := make(map[int]bool)
+	for oid, o := range s.instances {
+		if oid != id && o.CommandPort != 0 && (o.State == "running" || o.State == "starting") {
+			held[o.CommandPort] = true
+		}
+	}
+	for p := min; p <= max; p++ {
+		if held[p] || (isFree != nil && !isFree(p)) {
+			continue
+		}
+		inst.CommandPort = p
+		return p, nil
+	}
+	return 0, fmt.Errorf("no free command port in %d-%d", min, max)
 }
 
 func (s *Store) SetInstanceError(id, msg string) {

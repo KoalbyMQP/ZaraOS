@@ -74,10 +74,13 @@ type InstancesHandler struct {
 	registry   *registry.Registry
 	log        *logger.Logger
 	bootloader *requirements.Bootloader // set after construction via SetBootloader
+	commands   commandTransport
 }
 
 func NewInstancesHandler(s *store.Store, r *registry.Registry, l *logger.Logger) *InstancesHandler {
-	return &InstancesHandler{store: s, registry: r, log: l}
+	h := &InstancesHandler{store: s, registry: r, log: l, commands: newCommandTransport()}
+	l.Info("command transport", "transport", h.commands.Name())
+	return h
 }
 
 // SetBootloader wires the requirements bootloader so POST /instances can
@@ -96,6 +99,7 @@ func (h *InstancesHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /instances/{id}/logs", h.Logs)
 	mux.HandleFunc("GET /instances/{id}/health", h.Health)
 	mux.HandleFunc("GET /instances/{id}/metrics", h.Metrics)
+	mux.HandleFunc("POST /instances/{id}/command", h.Command)
 }
 
 func (h *InstancesHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -658,6 +662,10 @@ func (h *InstancesHandler) runContainer(instanceID, containerID, image, app, ver
 	for k, v := range opts.Env {
 		args = append(args, "-e", k+"="+v)
 	}
+	// Command-system env goes last so it overrides anything user-supplied.
+	for k, v := range h.commandEnv(instanceID) {
+		args = append(args, "-e", k+"="+v)
+	}
 
 	args = append(args, image)
 
@@ -836,5 +844,6 @@ func instanceFull(inst *store.Instance) map[string]any {
 	m := instanceSummary(inst)
 	m["container_id"] = inst.ContainerID
 	m["exit_code"] = inst.ExitCode
+	m["command_port"] = inst.CommandPort
 	return m
 }
