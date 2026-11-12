@@ -11,6 +11,8 @@ App code is identical for both transports:
 
     zc.start()   # non-blocking; picks the transport from ZARA_COMMAND_TRANSPORT
 
+    zc.publish("position", 12.3)   # live value for dashboards (latest wins)
+
 Every handler reply has the same shape regardless of transport:
     {"ok": bool, "result": <any JSON>, "error": str | None, "handler_us": int}
 """
@@ -22,7 +24,17 @@ import re
 import threading
 import time
 
-__all__ = ["command", "commands", "dispatch", "start", "service_name"]
+from ._telemetry import hub as _hub
+
+__all__ = ["command", "commands", "dispatch", "publish", "start", "service_name"]
+
+
+def publish(key, value):
+    """Publish a live value (any JSON-serializable value) for dashboards.
+
+    Cheap to call often: viewers only ever receive the latest value per key.
+    """
+    _hub.publish(key, value)
 
 _handlers = {}
 _lock = threading.Lock()
