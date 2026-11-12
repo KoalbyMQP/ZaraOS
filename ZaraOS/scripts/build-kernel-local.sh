@@ -457,7 +457,8 @@ INIT_EOF
 create_deployment_archive() {
     log_info "Creating deployment archive..."
 
-    local archive="$OUTPUT_DIR/zaraos-kernel-$(date +%Y%m%d-%H%M%S).tar.gz"
+    local archive
+    archive="$OUTPUT_DIR/zaraos-kernel-$(date +%Y%m%d-%H%M%S).tar.gz"
 
     cd "$OUTPUT_DIR"
     tar czf "$archive" \

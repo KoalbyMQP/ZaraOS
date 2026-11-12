@@ -185,7 +185,8 @@ show_status() {
     echo "=============================="
 
     if [ -f "$output_dir/Image" ]; then
-        local size=$(ls -lh "$output_dir/Image" | awk '{print $5}')
+        local size
+        size=$(ls -lh "$output_dir/Image" | awk '{print $5}')
         echo -e "✓ Kernel Image: $size"
         echo "  Location: $output_dir/Image"
     else
@@ -193,7 +194,8 @@ show_status() {
     fi
 
     if [ -d "$output_dir/modules" ]; then
-        local mod_count=$(find "$output_dir/modules" -name "*.ko" 2>/dev/null | wc -l)
+        local mod_count
+        mod_count=$(find "$output_dir/modules" -name "*.ko" 2>/dev/null | wc -l)
         echo -e "✓ Modules: $mod_count .ko files"
         echo "  Location: $output_dir/modules"
     else
@@ -201,7 +203,8 @@ show_status() {
     fi
 
     if [ -d "$output_dir/dtb" ]; then
-        local dtb_count=$(find "$output_dir/dtb" -name "*.dtb" 2>/dev/null | wc -l)
+        local dtb_count
+        dtb_count=$(find "$output_dir/dtb" -name "*.dtb" 2>/dev/null | wc -l)
         echo -e "✓ Device Trees: $dtb_count .dtb files"
         echo "  Location: $output_dir/dtb"
     else
