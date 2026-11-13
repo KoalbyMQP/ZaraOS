@@ -131,6 +131,10 @@
             curl
           ];
 
+          packages = [
+            pkgs.go
+          ];
+
           shellHook = ''
             # Auto-detect cross-compiler prefix from nix
             for prefix in aarch64-unknown-linux-gnu- aarch64-linux-gnu-; do
