@@ -13,6 +13,10 @@ App code is identical for both transports:
 
     zc.publish("position", 12.3)   # live value for dashboards (latest wins)
 
+    @zc.control(min=0, max=100, default=50)   # slider: called with the newest value only
+    def speed(value: float):
+        ...
+
 Every handler reply has the same shape regardless of transport:
     {"ok": bool, "result": <any JSON>, "error": str | None, "handler_us": int}
 """
@@ -24,9 +28,11 @@ import re
 import threading
 import time
 
+from . import _controls
+from ._controls import control
 from ._telemetry import hub as _hub
 
-__all__ = ["command", "commands", "dispatch", "publish", "start", "service_name"]
+__all__ = ["command", "commands", "control", "dispatch", "publish", "start", "service_name"]
 
 
 def publish(key, value):
@@ -41,8 +47,10 @@ _lock = threading.Lock()
 
 # Built-in commands answered by the SDK itself. Names starting with "_" are
 # reserved for these; cortex rejects them in POST /command, so the Driver
-# Station reaches them only through dedicated endpoints (GET /commands).
-DESCRIBE = "_commands"
+# Station reaches them only through dedicated endpoints.
+DESCRIBE = "_commands"            # GET /instances/{id}/commands
+DESCRIBE_CONTROLS = "_controls"   # GET /instances/{id}/controls
+SET_CONTROL = "_set_control"      # PUT /instances/{id}/controls/{name}
 
 
 def command(name=None):
@@ -95,6 +103,10 @@ def dispatch(name, args):
     """Run a command. Returns (http_status, reply_dict). Never raises."""
     if name == DESCRIBE:
         return _reply(200, True, result=commands())
+    if name == DESCRIBE_CONTROLS:
+        return _reply(200, True, result=[c.describe() for c in _controls.all_controls()])
+    if name == SET_CONTROL:
+        return _set_control(args)
     with _lock:
         fn = _handlers.get(name)
     if fn is None:
@@ -116,6 +128,23 @@ def dispatch(name, args):
     return _reply(200, True, result=result, t0=t0)
 
 
+def _set_control(args):
+    """args: {"name": str, "value": any, "seq": int | null}. Returns immediately."""
+    if not isinstance(args, dict) or "name" not in args or "value" not in args:
+        return _reply(400, False, error="expected {name, value, seq?}")
+    c = _controls.get(args["name"])
+    if c is None:
+        return _reply(404, False, error="unknown control: %s" % args["name"])
+    seq = args.get("seq")
+    if seq is not None and (isinstance(seq, bool) or not isinstance(seq, int)):
+        return _reply(400, False, error="seq must be an integer")
+    try:
+        accepted, value = c.set(args["value"], seq)
+    except _controls.ControlError as e:
+        return _reply(400, False, error=str(e))
+    return _reply(200, True, result={"accepted": accepted, "stale": not accepted, "value": value})
+
+
 def ros_name(instance_id):
     """ROS-safe name token for an instance id (ids contain '-', which ROS rejects)."""
     return "i_" + re.sub(r"[^A-Za-z0-9_]", "_", instance_id)
@@ -135,6 +164,8 @@ def start(transport=None):
     else:
         raise ValueError("unknown ZARA_COMMAND_TRANSPORT: %r" % transport)
     stop = backend.start()
-    print("[zara_commands] %s transport ready, commands: %s"
-          % (transport, ", ".join(sorted(_handlers))), flush=True)
+    _controls.start_all()
+    print("[zara_commands] %s transport ready, commands: %s; controls: %s"
+          % (transport, ", ".join(sorted(_handlers)) or "-",
+             ", ".join(sorted(c.name for c in _controls.all_controls())) or "-"), flush=True)
     return stop

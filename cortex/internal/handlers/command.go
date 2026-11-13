@@ -188,6 +188,8 @@ func (h *InstancesHandler) Command(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	status, reply, err := h.commands.Send(ctx, inst, req.Command, args)
 	forwardUS := time.Since(start).Microseconds()
+	h.log.Info("COMMAND", "id", id, "command", req.Command, "args", string(args),
+		"status", status, "forward_us", forwardUS)
 
 	if err != nil {
 		writeJSON(w, transportErrorStatus(err), map[string]any{
@@ -227,18 +229,36 @@ func (h *InstancesHandler) ListCommands(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	result, _, ok := h.callBuiltin(w, r, inst, describeCommand, []byte("{}"), "command discovery")
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"instance":  inst.ID,
+		"transport": h.commands.Name(),
+		"commands":  orEmptyList(result),
+	})
+}
 
+// callBuiltin sends an SDK built-in (a reserved "_" command) and unwraps the
+// SDK reply. On any failure it writes the error response and returns ok=false.
+// feature names the capability in the "app does not support X" message that
+// older SDKs (which don't know the built-in) produce.
+func (h *InstancesHandler) callBuiltin(w http.ResponseWriter, r *http.Request, inst *store.Instance,
+	builtin string, args []byte, feature string) (result json.RawMessage, forwardUS int64, ok bool) {
 	ctx, cancel := context.WithTimeout(r.Context(), commandTimeout)
 	defer cancel()
 
-	status, raw, err := h.commands.Send(ctx, inst, describeCommand, []byte("{}"))
+	start := time.Now()
+	status, raw, err := h.commands.Send(ctx, inst, builtin, args)
+	forwardUS = time.Since(start).Microseconds()
 	if err != nil {
 		writeJSON(w, transportErrorStatus(err), map[string]any{
 			"instance":  inst.ID,
 			"transport": h.commands.Name(),
 			"error":     "could not reach instance command server: " + err.Error(),
 		})
-		return
+		return nil, forwardUS, false
 	}
 
 	var reply struct {
@@ -248,31 +268,28 @@ func (h *InstancesHandler) ListCommands(w http.ResponseWriter, r *http.Request) 
 	}
 	if err := json.Unmarshal(raw, &reply); err != nil {
 		writeError(w, http.StatusBadGateway, "instance returned an invalid reply")
-		return
+		return nil, forwardUS, false
 	}
 	if status != http.StatusOK || !reply.OK {
 		msg := reply.Error
-		if status == http.StatusNotFound {
-			// Older SDK without the built-in: report it plainly.
-			msg = "app does not support command discovery: " + msg
+		if status == http.StatusNotFound && reply.Error == "unknown command: "+builtin {
+			msg = "app does not support " + feature + " (SDK too old?)"
 		}
 		writeJSON(w, status, map[string]any{
 			"instance":  inst.ID,
 			"transport": h.commands.Name(),
 			"error":     msg,
 		})
-		return
+		return nil, forwardUS, false
 	}
+	return reply.Result, forwardUS, true
+}
 
-	commands := reply.Result
-	if len(commands) == 0 || string(commands) == "null" {
-		commands = json.RawMessage("[]")
+func orEmptyList(v json.RawMessage) json.RawMessage {
+	if len(v) == 0 || string(v) == "null" {
+		return json.RawMessage("[]")
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"instance":  inst.ID,
-		"transport": h.commands.Name(),
-		"commands":  commands,
-	})
+	return v
 }
 
 // runningInstance looks up {id} and writes 404/409 if it can't take commands.
