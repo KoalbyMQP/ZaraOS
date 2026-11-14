@@ -293,8 +293,20 @@ func orEmptyList(v json.RawMessage) json.RawMessage {
 }
 
 // runningInstance looks up {id} and writes 404/409 if it can't take commands.
+//
+// {id} may be an instance ID or an app name. An app name resolves to the app's
+// current instance, so a Driver Station that addresses the app by name keeps
+// working when a restart or update gives it a new instance ID. The resolved ID
+// is returned in the X-Zara-Instance response header.
 func (h *InstancesHandler) runningInstance(w http.ResponseWriter, r *http.Request) (*store.Instance, bool) {
-	inst, ok := h.store.GetInstance(r.PathValue("id"))
+	ref := r.PathValue("id")
+	inst, ok := h.store.GetInstance(ref)
+	if !ok {
+		inst, ok = h.store.CurrentInstance(ref)
+	}
+	if ok {
+		w.Header().Set("X-Zara-Instance", inst.ID)
+	}
 	if !ok {
 		writeError(w, http.StatusNotFound, "instance not found")
 		return nil, false

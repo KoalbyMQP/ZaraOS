@@ -147,6 +147,31 @@ func (s *Store) HasRunningInstance(appName string) bool {
 	return false
 }
 
+// CurrentInstance returns the instance that currently represents an app: the
+// newest starting/running one, else the newest of any state. Restart and
+// update create a new instance with a new ID, so clients that address an app
+// by name keep working across them.
+func (s *Store) CurrentInstance(appName string) (*Instance, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var best *Instance
+	bestLive := false
+	for _, inst := range s.instances {
+		if inst.App != appName {
+			continue
+		}
+		live := inst.State == "running" || inst.State == "starting"
+		if best == nil || (live && !bestLive) || (live == bestLive && inst.StartedAt.After(best.StartedAt)) {
+			best, bestLive = inst, live
+		}
+	}
+	if best == nil {
+		return nil, false
+	}
+	cp := *best
+	return &cp, true
+}
+
 func (s *Store) CreateInstance(app, version, image string) *Instance {
 	s.mu.Lock()
 	defer s.mu.Unlock()
