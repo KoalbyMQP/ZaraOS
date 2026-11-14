@@ -137,6 +137,7 @@ run_startup() {
         -v /etc/wpa_supplicant.conf:/etc/wpa_supplicant.conf \
         -v /var/run/wpa_supplicant:/var/run/wpa_supplicant \
         -v /run/containerd/containerd.sock:/run/containerd/containerd.sock \
+        -v /var/run/dbus:/run/dbus \
         -e SDL_VIDEODRIVER=kmsdrm \
         -e SDL_AUDIODRIVER=dummy \
         "$IMAGE_NAME" \
