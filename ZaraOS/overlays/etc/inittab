@@ -11,10 +11,12 @@
 # System initialization
 ::sysinit:/etc/init.d/rcS
 
-# Serial console — Pi 5 uses ttyAMA10, QEMU uses ttyAMA0
-# BusyBox init ignores entries for non-existent ttys, so both are safe.
-ttyAMA10::respawn:/sbin/getty -n -L -l /usr/bin/autologin.sh ttyAMA10 115200 vt100
-ttyAMA0::respawn:/sbin/getty -n -L -l /usr/bin/autologin.sh ttyAMA0 115200 vt100
+# Serial console — Pi 5 uses ttyAMA10, QEMU uses ttyAMA0.
+# BusyBox init does NOT skip entries for missing ttys (it respawns them
+# every second, spamming "can't open /dev/ttyAMAxx"), so the tty field is
+# left empty and serial-getty.sh only starts getty if the device exists.
+::respawn:/usr/bin/serial-getty.sh ttyAMA10 115200
+::respawn:/usr/bin/serial-getty.sh ttyAMA0 115200
 
 # HDMI / graphical console — gated by startup wizard on first boot
 # startup-gate.sh defers getty until the setup UI finishes (DRM exclusive).

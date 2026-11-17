@@ -54,6 +54,15 @@ if [ -d "${TARGET_DIR}/etc/ssh" ]; then
     echo "SSH host key permissions fixed"
 fi
 
+# Allow root to log in over SSH with a password. OpenSSH's default
+# (prohibit-password) rejects it, and there are no other users. This only
+# grants access when a root password is set (BR2_TARGET_GENERIC_ROOT_PASSWD,
+# currently QEMU only): empty passwords stay refused (PermitEmptyPasswords no).
+if [ -f "${TARGET_DIR}/etc/ssh/sshd_config" ]; then
+    sed -i -E 's/^#?PermitRootLogin .*/PermitRootLogin yes/' "${TARGET_DIR}/etc/ssh/sshd_config"
+    echo "sshd: PermitRootLogin yes"
+fi
+
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ SECURITY                                                        │
 # └─────────────────────────────────────────────────────────────────┘
