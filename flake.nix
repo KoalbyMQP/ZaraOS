@@ -172,6 +172,27 @@
               export HOSTCC="${pkgs.stdenv.cc}/bin/cc"
             ''}
 
+            # Buildroot's host-finalize step (support/scripts/fix-rpath) rewrites
+            # every host binary's RUNPATH to $ORIGIN/../lib, dropping all
+            # /nix/store entries. On FHS distros the system libs live in /usr/lib
+            # so nothing breaks; on NixOS host tools stop running afterwards
+            # (e.g. "can't execute patchelf utility" — no libstdc++, or the cross
+            # `ar` failing on libfl.so.2 from flex), and every later build step
+            # fails. Make the libraries host tools were linked against findable:
+            # the gcc runtime (libstdc++/libgcc_s) plus every -L dir the Nix
+            # cc-wrapper passes (NIX_LDFLAGS), which is exactly the set of Nix
+            # libraries a host binary can depend on.
+            ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+              _br_libs="${pkgs.stdenv.cc.cc.lib}/lib"
+              for _f in $NIX_LDFLAGS; do
+                case "$_f" in
+                  -L/nix/store/*) _br_libs="$_br_libs:''${_f#-L}" ;;
+                esac
+              done
+              export LD_LIBRARY_PATH="$_br_libs''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+              unset _br_libs _f
+            ''}
+
             # Provide Linux-specific headers and macOS compat fixes to the host compiler.
             # Only needed on macOS — on Linux these shims shadow glibc's real headers.
             ${pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
