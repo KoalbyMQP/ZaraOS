@@ -890,9 +890,9 @@ An app can ship pages for the Driver Station inside its image, at `/etc/zaraos/u
   ...                 the rest of the federation build (chunks, CSS)
 ```
 
-The descriptor format and the React page contract are documented in the Driver Station README.
+The descriptor format and the React page contract are documented in the Driver Station README. `examples/app-ui/hello-ui` is a complete app with a Python backend and pages built by Rsbuild + Module Federation.
 
-The first time cortex reports a running instance, it reads the bundle out of the instance's image in the background (`tar` in a throwaway container, so the image needs `tar`). Once loaded, every instance of that app and version carries `"ui": {"descriptor_url": "/ui/{app}/{version}/zara-ui.json"}`; the Driver Station resolves it against the robot origin. An image without the directory has no UI and its instances have no `ui` field.
+The first time cortex reports a running instance, it reads the bundle out of the instance's image in the background (`tar` in a throwaway container with `--network none`, so the image needs `tar` and no network is set up). Once loaded, every instance of that app and version carries `"ui": {"descriptor_url": "/ui/{app}/{version}/zara-ui.json"}`; the Driver Station resolves it against the robot origin. An image without the directory has no UI and its instances have no `ui` field.
 
 Bundles are held in memory, capped at 64 MiB and 4096 files each, and only regular files are served. Each new instance of an app version reloads the bundle from its image; if that image has no usable bundle, the previous one is dropped.
 
