@@ -260,7 +260,10 @@ func ImageExtractor(cli func() string) ExtractFunc {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		cmd := exec.CommandContext(ctx, cli(), "run", "--rm", "--entrypoint", "",
+		// --network none: reading files needs no network, and without it nerdctl sets up
+		// its default bridge network for the throwaway container, which fails on hosts
+		// without the CNI bridge plugin (and iptables) installed.
+		cmd := exec.CommandContext(ctx, cli(), "run", "--rm", "--network", "none", "--entrypoint", "",
 			image, "tar", "-cf", "-", "-C", BundleDir, ".")
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
