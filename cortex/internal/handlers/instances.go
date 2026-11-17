@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"cortex/internal/appui"
 	"cortex/internal/logger"
 	"cortex/internal/registry"
 	"cortex/internal/requirements"
@@ -71,7 +70,6 @@ type taggedLine struct {
 }
 
 type InstancesHandler struct {
-	ui         *appui.Store // set after construction via SetAppUI
 	store      *store.Store
 	registry   *registry.Registry
 	log        *logger.Logger
@@ -105,7 +103,7 @@ func (h *InstancesHandler) List(w http.ResponseWriter, r *http.Request) {
 	out := make([]map[string]any, 0, len(instances))
 	for _, inst := range instances {
 		h.reconcileInstanceState(inst)
-		out = append(out, h.withUI(inst, instanceSummary(inst)))
+		out = append(out, instanceSummary(inst))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"instances": out})
 }
@@ -117,7 +115,7 @@ func (h *InstancesHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.reconcileInstanceState(inst)
-	writeJSON(w, http.StatusOK, h.withUI(inst, instanceFull(inst)))
+	writeJSON(w, http.StatusOK, instanceFull(inst))
 }
 
 func (h *InstancesHandler) Start(w http.ResponseWriter, r *http.Request) {
@@ -201,7 +199,7 @@ func (h *InstancesHandler) Start(w http.ResponseWriter, r *http.Request) {
 	}
 
 	inst, _ = h.store.GetInstance(inst.ID)
-	writeJSON(w, http.StatusCreated, h.withUI(inst, instanceSummary(inst)))
+	writeJSON(w, http.StatusCreated, instanceSummary(inst))
 }
 
 // autoDiscover reads the embedded zaraos.json from a container image

@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"cortex/internal/appui"
 	"cortex/internal/auth"
 	"cortex/internal/handlers"
 	"cortex/internal/logger"
@@ -44,10 +43,6 @@ func main() {
 
 	authHandler := handlers.NewAuthHandler(authStore, st, log)
 	authHandler.RegisterPublic(pub)
-
-	// App UI bundles are loaded by the browser as scripts, which cannot sign.
-	appUI := appui.NewStore(appui.ImageExtractor(handlers.ContainerCLI), log)
-	handlers.NewAppUIHandler(appUI, log).RegisterPublic(pub)
 	pub.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -62,7 +57,6 @@ func main() {
 	handlers.NewImagesHandler(st, log).Register(prot)
 	instancesHandler := handlers.NewInstancesHandler(st, reg, log)
 	instancesHandler.SetBootloader(bootloader)
-	instancesHandler.SetAppUI(appUI)
 	instancesHandler.Register(prot)
 	handlers.NewDiagnosticsHandler(st, log).Register(prot)
 	handlers.NewROSHandler(log).Register(prot)
