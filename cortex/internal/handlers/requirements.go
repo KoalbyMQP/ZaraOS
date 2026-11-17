@@ -366,11 +366,8 @@ func (h *RequirementsHandler) ApplyUpdate(w http.ResponseWriter, r *http.Request
 
 	// Start new instance.
 	inst := h.store.CreateInstance(name, latest, imageRef)
-	args := []string{"run", "-d", "--name", inst.ContainerID, "--network", "host"}
-	for k, v := range pkg.Env {
-		args = append(args, "-e", k+"="+v)
-	}
-	args = append(args, imageRef)
+	opts := h.bootloader.PrepareRun(r.Context(), inst.ID, name, requirements.RunOptsFromPackage(pkg))
+	args := requirements.BuildRunArgs(inst.ContainerID, imageRef, opts)
 
 	out, err = exec.Command(ContainerCLI(), args...).CombinedOutput()
 	if err != nil {

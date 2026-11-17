@@ -99,6 +99,8 @@ BR2_PACKAGE_E2FSPROGS=y
 BR2_PACKAGE_E2FSPROGS_RESIZE2FS=y
 BR2_PACKAGE_UTIL_LINUX=y
 BR2_PACKAGE_UTIL_LINUX_BINARIES=y
+# unshare: used by /usr/bin/zaraos-roudi.sh (private /tmp for iceoryx RouDi)
+BR2_PACKAGE_UTIL_LINUX_UNSHARE=y
 
 # Cortex robot control plane (built from local source)
 BR2_PACKAGE_CORTEX=y
@@ -127,6 +129,9 @@ BR2_PACKAGE_HTOP=y
 BR2_PACKAGE_CONTAINERD=y
 BR2_PACKAGE_CRUN=y
 BR2_PACKAGE_CNI_PLUGINS=y
+# iceoryx RouDi for CycloneDDS shared-memory transport between app
+# containers (started on demand by cortex). Pulls in acl + cpptoml.
+BR2_PACKAGE_ICEORYX=y
 BR2_PACKAGE_PROMETHEUS_NODE_EXPORTER=y
 
 # ┌─────────────────────────────────────────────────────────────────┐

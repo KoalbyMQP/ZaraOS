@@ -28,6 +28,14 @@ type Package struct {
 	Privileged   bool              `json:"privileged,omitempty"`
 	Devices      []string          `json:"devices,omitempty"`
 	Volumes      []string          `json:"volumes,omitempty"`
+
+	// IPC is the container IPC mode: "host" (default when empty), "private"
+	// or "shareable". Host IPC shares /dev/shm and /dev/mqueue across apps.
+	IPC string `json:"ipc,omitempty"`
+
+	// SharedMemory enables CycloneDDS shared-memory transport (iceoryx).
+	// Cortex starts the RouDi daemon on demand while such a package runs.
+	SharedMemory bool `json:"shared_memory,omitempty"`
 }
 
 // HealthCheck configures automatic restart behaviour for a package.
@@ -80,6 +88,12 @@ func (m *Manifest) Validate() error {
 		}
 		if names[pkg.Name] {
 			return fmt.Errorf("duplicate package name %q", pkg.Name)
+		}
+		if !ValidIPC(pkg.IPC) {
+			return fmt.Errorf("package %q has invalid ipc %q (want host, private or shareable)", pkg.Name, pkg.IPC)
+		}
+		if pkg.SharedMemory && pkg.IPC != "" && pkg.IPC != IPCHost {
+			return fmt.Errorf("package %q: shared_memory requires ipc \"host\", got %q", pkg.Name, pkg.IPC)
 		}
 		names[pkg.Name] = true
 	}

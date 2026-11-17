@@ -1,0 +1,62 @@
+# ===================================================================
+# iceoryx RouDi configuration (ZaraOS)
+# ===================================================================
+# RouDi is started on demand by cortex (via /usr/bin/zaraos-roudi.sh)
+# when an app with "shared_memory": true is started, and stopped again
+# once no such app is running.
+#
+# RouDi PREALLOCATES all mempools below in /dev/shm at startup, so this
+# directly costs RAM while it runs. Upstream's example config is ~420 MB;
+# this one is ~65 MB, sized for a Raspberry Pi 5. On top of that RouDi
+# always creates a ~64 MB management segment (/dev/shm/iceoryx_mgmt, size
+# fixed by iceoryx compile-time limits that must match the ROS clients),
+# so a running RouDi uses ~130 MB of /dev/shm in total.
+#
+# A chunk must hold one sample plus ~64-128 bytes of iceoryx/CycloneDDS
+# headers. Publishers whose sample doesn't fit any pool fail to loan a
+# chunk — add/enlarge a pool here if you publish larger fixed-size types.
+#
+#   size (bytes) x count   = total
+#        128     x 10000   =  1.3 MB   tiny msgs (std_msgs, Twist, ...)
+#       1024     x 5000    =  5.1 MB   small msgs (Imu, JointState-sized)
+#      16384     x 1000    = 16.4 MB
+#     131072     x 100     = 13.1 MB
+#     524288     x 20      = 10.5 MB
+#    1048576     x 10      = 10.5 MB
+#    4194304     x 2       =  8.4 MB   large fixed-size arrays
+#                            -------
+#                            ~65 MB
+# ===================================================================
+
+[general]
+version = 1
+
+[[segment]]
+
+[[segment.mempool]]
+size = 128
+count = 10000
+
+[[segment.mempool]]
+size = 1024
+count = 5000
+
+[[segment.mempool]]
+size = 16384
+count = 1000
+
+[[segment.mempool]]
+size = 131072
+count = 100
+
+[[segment.mempool]]
+size = 524288
+count = 20
+
+[[segment.mempool]]
+size = 1048576
+count = 10
+
+[[segment.mempool]]
+size = 4194304
+count = 2

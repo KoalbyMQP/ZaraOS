@@ -27,6 +27,8 @@ type PackageMeta struct {
 	Privileged   bool              `json:"privileged,omitempty"`
 	Devices      []string          `json:"devices,omitempty"`
 	Volumes      []string          `json:"volumes,omitempty"`
+	IPC          string            `json:"ipc,omitempty"`
+	SharedMemory bool              `json:"shared_memory,omitempty"`
 }
 
 // ReadPackageMeta extracts the zaraos.json from a container image.
@@ -74,6 +76,8 @@ func (pm *PackageMeta) ToPackage(version string) Package {
 		Privileged:   pm.Privileged,
 		Devices:      pm.Devices,
 		Volumes:      pm.Volumes,
+		IPC:          pm.IPC,
+		SharedMemory: pm.SharedMemory,
 	}
 }
 

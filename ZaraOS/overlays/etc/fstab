@@ -1,0 +1,18 @@
+# ===================================================================
+# ZaraOS fstab
+# ===================================================================
+# Core filesystems (proc, sysfs, devtmpfs, devpts, /tmp, cgroup2, /data)
+# are mounted explicitly by /etc/init.d/rcS. This file only lists the
+# IPC filesystems, mounted by `mount -a` in rcS right after devtmpfs
+# (anything created under /dev before that would be hidden).
+#
+# /dev/shm    — POSIX shared memory. App containers run with --ipc host
+#               and bind this in, so ROS 2 / DDS shared-memory transports
+#               (iceoryx for CycloneDDS, Fast DDS SHM) work across apps.
+#               iceoryx RouDi preallocates its mempools here (see
+#               /etc/iceoryx/roudi_config.toml), so keep size above that.
+# /dev/mqueue — POSIX message queues (shared with --ipc host containers).
+#
+# <file system> <mount pt>   <type>  <options>                          <dump> <pass>
+tmpfs           /dev/shm     tmpfs   mode=1777,nosuid,nodev,size=50%    0      0
+mqueue          /dev/mqueue  mqueue  nosuid,nodev,noexec                0      0

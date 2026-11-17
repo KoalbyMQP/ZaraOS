@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  CycloneDDS config for ZaraOS apps with "shared_memory": true.
+
+  cortex bind-mounts this file into the container at
+  /etc/cyclonedds-shm.xml and sets CYCLONEDDS_URI to it (unless the
+  package env already sets CYCLONEDDS_URI). It enables the iceoryx
+  shared-memory transport; RouDi is started by cortex beforehand.
+
+  Shared memory is only used for samples that qualify (CycloneDDS
+  0.10 / ROS Humble):
+    * fixed-size message types (no strings / unbounded sequences —
+      e.g. sensor_msgs/Image and PointCloud2 do NOT qualify),
+    * KEEP_LAST history, VOLATILE durability.
+  Everything else transparently falls back to loopback UDP.
+-->
+<CycloneDDS xmlns="https://cdds.io/config"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/releases/0.10.x/etc/cyclonedds.xsd">
+  <Domain Id="any">
+    <SharedMemory>
+      <Enable>true</Enable>
+      <LogLevel>warn</LogLevel>
+    </SharedMemory>
+  </Domain>
+</CycloneDDS>

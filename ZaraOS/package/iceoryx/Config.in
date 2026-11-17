@@ -1,0 +1,24 @@
+config BR2_PACKAGE_ICEORYX
+	bool "iceoryx"
+	depends on BR2_INSTALL_LIBSTDCPP
+	depends on BR2_TOOLCHAIN_HAS_THREADS
+	depends on BR2_TOOLCHAIN_GCC_AT_LEAST_8 # C++14 + <filesystem>
+	depends on BR2_TOOLCHAIN_HAS_ATOMIC
+	depends on BR2_USE_MMU
+	select BR2_PACKAGE_ACL
+	select BR2_PACKAGE_CPPTOML
+	help
+	  Eclipse iceoryx zero-copy shared-memory IPC. Installs the
+	  RouDi daemon (iox-roudi) used by CycloneDDS shared-memory
+	  transport in ROS 2 app containers.
+
+	  The version MUST match the iceoryx linked into the app images
+	  (ros-humble-iceoryx-posh), otherwise clients cannot attach to
+	  RouDi's shared memory.
+
+	  https://github.com/eclipse-iceoryx/iceoryx
+
+comment "iceoryx needs a toolchain w/ C++, threads, atomic, gcc >= 8"
+	depends on BR2_USE_MMU
+	depends on !BR2_INSTALL_LIBSTDCPP || !BR2_TOOLCHAIN_HAS_THREADS || \
+		!BR2_TOOLCHAIN_GCC_AT_LEAST_8 || !BR2_TOOLCHAIN_HAS_ATOMIC

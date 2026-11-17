@@ -22,6 +22,11 @@ mount -o remount,rw /
 mount -t devpts devpts /dev/pts
 mount -t tmpfs tmpfs /tmp
 
+# IPC filesystems from /etc/fstab (/dev/shm, /dev/mqueue). Must come after
+# devtmpfs is mounted. Shared with app containers via --ipc host.
+mkdir -p /dev/shm /dev/mqueue
+mount -a || echo "WARNING: mount -a failed (/dev/shm, /dev/mqueue)"
+
 # Now psplash has a chance of working
 psplash < /dev/null &
 sleep 1

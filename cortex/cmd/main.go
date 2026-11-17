@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"cortex/internal/auth"
 	"cortex/internal/handlers"
+	"cortex/internal/iceoryx"
 	"cortex/internal/logger"
 	"cortex/internal/middleware"
 	"cortex/internal/registry"
@@ -37,6 +39,12 @@ func main() {
 	// Requirements bootloader.
 	reqPath := os.Getenv("REQUIREMENTS_PATH")
 	bootloader := requirements.NewBootloader(st, reg, log, reqPath)
+
+	// iceoryx RouDi supervisor — started on demand for packages with
+	// shared_memory enabled (CycloneDDS SHM), stopped when none run.
+	roudi := newRoudiSupervisor(st, log)
+	roudi.Cleanup()
+	bootloader.SetSharedMemoryProvider(roudi)
 
 	// Public mux — no auth required.
 	pub := http.NewServeMux()
@@ -88,6 +96,7 @@ func main() {
 	// a stale "running" for a container that has already exited.
 	reconcileCtx, reconcileCancel := context.WithCancel(context.Background())
 	go instancesHandler.StartReconciler(reconcileCtx)
+	go roudi.Run(reconcileCtx)
 
 	// Start the requirements control loop in the background — loads the
 	// manifest, starts essential packages in dependency order, then
@@ -121,6 +130,38 @@ func main() {
 	log.Info("server stopped")
 }
 
+// newRoudiSupervisor builds the iceoryx RouDi supervisor. Users are tracked
+// by instance ID against the store. If RouDi dies under running apps, those
+// instances are marked crashed and their containers stopped — iceoryx
+// clients can't reconnect — so health-checked packages are restarted by the
+// bootloader (which starts a fresh RouDi via Acquire).
+func newRoudiSupervisor(st *store.Store, log *logger.Logger) *iceoryx.Supervisor {
+	state := func(id string) (string, bool) {
+		inst, ok := st.GetInstance(id)
+		if !ok {
+			return "", false
+		}
+		return inst.State, true
+	}
+	onCrash := func(ids []string, err error) {
+		for _, id := range ids {
+			inst, ok := st.GetInstance(id)
+			if !ok {
+				continue
+			}
+			exitCode := 1
+			st.SetInstanceState(id, "crashed", &exitCode)
+			st.SetInstanceError(id, err.Error())
+			exec.Command(handlers.ContainerCLI(), "stop", inst.ContainerID).Run()
+			st.AddEvent("roudi_crashed", map[string]any{
+				"instance_id": id,
+				"app":         inst.App,
+				"error":       err.Error(),
+			})
+		}
+	}
+	return iceoryx.New(iceoryx.Config{SocketDir: requirements.IceoryxSocketDir}, log, state, onCrash)
+}
 
 func printBanner(log *logger.Logger) {
 	log.Banner(

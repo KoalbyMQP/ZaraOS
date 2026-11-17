@@ -339,9 +339,11 @@ Start a new container instance. The `app` field is required. If `version` is omi
 { "app": "ros2-nav", "version": "latest", "image": "<optional-override>" }
 ```
 
+Optional runtime fields (merged over the package's manifest entry): `privileged`, `devices`, `volumes`, `env`, `ipc` (`"host"` | `"private"` | `"shareable"`), `shared_memory` (bool). See [Container networking, IPC and shared memory](#container-networking-ipc-and-shared-memory).
+
 **Response `201`:** Instance summary. Container is started synchronously via nerdctl — response reflects the final state (`"running"` on success, `"crashed"` on failure).
 
-**Response `400`:** Missing `app` field.
+**Response `400`:** Missing `app` field, or invalid `ipc`.
 **Response `404`:** App or version not found.
 **Response `409`:** Instance already running for this app.
 
@@ -749,3 +751,32 @@ changelog      string — Release notes
 - **Event retention** — Last 500 events kept in a rotating in-memory buffer
 - **Graceful shutdown** — 10-second timeout for connection draining
 - **CORS** — Enabled on all routes with preflight handling
+
+---
+
+## Container networking, IPC and shared memory
+
+Every app container is started with `--network host` and, by default, `--ipc host`, so ROS 2 nodes in different apps share the host network stack, `/dev/shm` and `/dev/mqueue` (mounted by ZaraOS from `/etc/fstab`). All container starts (requirements bootloader, `POST /instances`, restart/update, `POST /requirements/updates/{name}`) build their arguments through `requirements.BuildRunArgs`.
+
+Manifest (`requirements.json` / `zaraos.json`) fields:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `ipc` | `"host"` | `--ipc` mode. `"private"` / `"shareable"` opt the app out of host IPC. |
+| `shared_memory` | `false` | Enable CycloneDDS shared-memory transport via iceoryx (see below). Requires `ipc` `"host"` (or unset). |
+
+### CycloneDDS shared memory (iceoryx)
+
+ZaraOS apps use `rmw_cyclonedds_cpp` (ROS Humble), whose shared-memory transport needs the iceoryx **RouDi** daemon. Cortex supervises RouDi on demand (`internal/iceoryx`):
+
+- When a `shared_memory` container is about to start, cortex launches `/usr/bin/zaraos-roudi.sh` (iceoryx 2.0.5, matching `ros-humble-iceoryx-posh`) if it isn't running and waits for its socket.
+- RouDi is stopped 30 s after the last `shared_memory` instance stops, so robots that don't use it pay nothing (RouDi preallocates ~130 MB in `/dev/shm`: ~65 MB of mempools configured in `/etc/iceoryx/roudi_config.toml` plus a fixed ~64 MB management segment).
+- If RouDi can't be started, the container still starts without shared memory (loopback UDP) and a `shared_memory_unavailable` event is emitted.
+- If RouDi dies under running apps, those instances are marked `crashed` and stopped (`roudi_crashed` event) — iceoryx clients can't reconnect. Health-checked packages are restarted by the bootloader.
+
+A `shared_memory` container additionally gets:
+
+- `-v /tmp/iceoryx:/tmp` — iceoryx hardcodes its unix sockets under `/tmp/`; RouDi runs in a private mount namespace where this directory is its `/tmp`. **The container's `/tmp` is therefore shared with other shared-memory apps.**
+- `-v /etc/zaraos/cyclonedds-shm.xml:/etc/cyclonedds-shm.xml:ro` and `CYCLONEDDS_URI=file:///etc/cyclonedds-shm.xml` (unless the package sets `CYCLONEDDS_URI` itself — a custom config must then enable `<SharedMemory>` on its own).
+
+> **Limitation:** CycloneDDS 0.10 only sends **fixed-size** message types (no strings or unbounded sequences) with `KEEP_LAST` history and `VOLATILE` durability over shared memory. `sensor_msgs/Image`, `PointCloud2`, etc. still use loopback UDP. Benchmark your topics before relying on a speedup. A future move to Fast DDS / ROS Jazzy only needs `--ipc host` (already the default) and makes `shared_memory` / RouDi unnecessary.

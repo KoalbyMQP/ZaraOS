@@ -1,0 +1,12 @@
+config BR2_PACKAGE_CPPTOML
+	bool "cpptoml"
+	depends on BR2_INSTALL_LIBSTDCPP
+	help
+	  Header-only C++11 TOML parser. Only needed at build time by
+	  iceoryx (RouDi TOML config support); nothing is installed to
+	  the target.
+
+	  https://github.com/skystrife/cpptoml
+
+comment "cpptoml needs a toolchain w/ C++"
+	depends on !BR2_INSTALL_LIBSTDCPP

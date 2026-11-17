@@ -44,6 +44,10 @@ type Bootloader struct {
 	// Track restart state for exponential backoff.
 	mu         sync.Mutex
 	restartLog map[string]*restartState
+
+	// shm starts iceoryx RouDi on demand for shared_memory packages.
+	// Nil means shared memory is unavailable (containers fall back to UDP).
+	shm SharedMemoryProvider
 }
 
 // restartState tracks per-package restart history for exponential backoff.
@@ -76,6 +80,41 @@ func NewBootloader(s *store.Store, r *registry.Registry, l *logger.Logger, manif
 		manifestPath: manifestPath,
 		restartLog:   make(map[string]*restartState),
 	}
+}
+
+// SetSharedMemoryProvider wires the RouDi supervisor used for packages with
+// shared_memory enabled. Must be called before Run.
+func (b *Bootloader) SetSharedMemoryProvider(p SharedMemoryProvider) {
+	b.shm = p
+}
+
+// PrepareRun finalizes RunOpts for a container about to start as instanceID.
+// For shared_memory containers it makes sure RouDi is running first; if
+// that fails, shared memory is dropped for this container (it still starts
+// and CycloneDDS talks over loopback UDP) rather than failing the app.
+func (b *Bootloader) PrepareRun(ctx context.Context, instanceID, pkgName string, opts RunOpts) RunOpts {
+	if !opts.SharedMemory {
+		return opts
+	}
+
+	var err error
+	if b.shm == nil {
+		err = fmt.Errorf("no shared-memory provider configured")
+	} else {
+		err = b.shm.Acquire(ctx, instanceID)
+	}
+	if err != nil {
+		b.log.Warn("shared memory unavailable, starting without it",
+			"package", pkgName, "instance", instanceID, "err", err,
+		)
+		b.store.AddEvent("shared_memory_unavailable", map[string]any{
+			"package":     pkgName,
+			"instance_id": instanceID,
+			"error":       err.Error(),
+		})
+		opts.SharedMemory = false
+	}
+	return opts
 }
 
 // Manifest returns the currently loaded manifest (may be nil before Run).
@@ -347,7 +386,8 @@ func (b *Bootloader) startPackage(ctx context.Context, pkg Package) error {
 		"instance", inst.ID,
 	)
 
-	if err := b.runContainer(inst.ID, inst.ContainerID, imageRef, pkg); err != nil {
+	opts := b.PrepareRun(ctx, inst.ID, pkg.Name, RunOptsFromPackage(pkg))
+	if err := b.runContainer(inst.ContainerID, imageRef, opts); err != nil {
 		exitCode := 1
 		b.store.SetInstanceState(inst.ID, "crashed", &exitCode)
 		b.store.SetInstanceError(inst.ID, err.Error())
@@ -397,29 +437,8 @@ func (b *Bootloader) pullImage(ctx context.Context, imageRef string) error {
 	return nil
 }
 
-func (b *Bootloader) runContainer(instanceID, containerID, imageRef string, pkg Package) error {
-	args := []string{"run", "-d", "--name", containerID, "--network", "host"}
-
-	// Privileged mode grants full access to the host's devices.
-	if pkg.Privileged {
-		args = append(args, "--privileged")
-	}
-
-	// Explicit device passthrough (e.g. "/dev/i2c-1", "/dev/video0").
-	for _, dev := range pkg.Devices {
-		args = append(args, "--device", dev)
-	}
-
-	// Volume mounts (e.g. "/dev:/dev", "/sys:/sys:ro").
-	for _, vol := range pkg.Volumes {
-		args = append(args, "-v", vol)
-	}
-
-	for k, v := range pkg.Env {
-		args = append(args, "-e", k+"="+v)
-	}
-	args = append(args, imageRef)
-
+func (b *Bootloader) runContainer(containerID, imageRef string, opts RunOpts) error {
+	args := BuildRunArgs(containerID, imageRef, opts)
 	out, err := exec.Command(containerCLI(), args...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s — %w", strings.TrimSpace(string(out)), err)

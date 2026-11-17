@@ -85,6 +85,13 @@ CONFIG_OVERLAY_FS=y
 CONFIG_SECCOMP=y
 CONFIG_SECCOMP_FILTER=y
 
+# Shared IPC / shared memory for app containers (--ipc host, ROS 2 DDS SHM).
+# TMPFS_POSIX_ACL is required by iceoryx (CycloneDDS SHM) on /dev/shm.
+CONFIG_SYSVIPC=y
+CONFIG_POSIX_MQUEUE=y
+CONFIG_SHMEM=y
+CONFIG_TMPFS_POSIX_ACL=y
+
 # ── Networking ──────────────────────────────────────────────────
 CONFIG_NET=y
 CONFIG_INET=y

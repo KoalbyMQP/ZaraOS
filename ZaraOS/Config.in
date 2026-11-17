@@ -18,3 +18,5 @@
 # Example:
 # source "$BR2_EXTERNAL_ZaraOS_PATH/package/your-package/Config.in"
 source "$BR2_EXTERNAL_ZaraOS_PATH/package/cortex/Config.in"
+source "$BR2_EXTERNAL_ZaraOS_PATH/package/cpptoml/Config.in"
+source "$BR2_EXTERNAL_ZaraOS_PATH/package/iceoryx/Config.in"

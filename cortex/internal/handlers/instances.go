@@ -127,9 +127,18 @@ func (h *InstancesHandler) Start(w http.ResponseWriter, r *http.Request) {
 		Devices    []string          `json:"devices"`
 		Volumes    []string          `json:"volumes"`
 		Env        map[string]string `json:"env"`
+		// IPC overrides the manifest ipc mode (host|private|shareable).
+		IPC string `json:"ipc"`
+		// SharedMemory enables CycloneDDS shared memory (iceoryx).
+		SharedMemory bool `json:"shared_memory"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.App == "" {
 		writeError(w, http.StatusBadRequest, "missing required field: app")
+		return
+	}
+	if !requirements.ValidIPC(req.IPC) {
+		writeError(w, http.StatusBadRequest,
+			fmt.Sprintf("invalid ipc %q (want host, private or shareable)", req.IPC))
 		return
 	}
 
@@ -184,10 +193,12 @@ func (h *InstancesHandler) Start(w http.ResponseWriter, r *http.Request) {
 	})
 
 	opts := h.resolveContainerOpts(req.App, &containerOpts{
-		Privileged: req.Privileged,
-		Devices:    req.Devices,
-		Volumes:    req.Volumes,
-		Env:        req.Env,
+		Privileged:   req.Privileged,
+		Devices:      req.Devices,
+		Volumes:      req.Volumes,
+		Env:          req.Env,
+		IPC:          req.IPC,
+		SharedMemory: req.SharedMemory,
 	})
 	h.runContainer(inst.ID, inst.ContainerID, imageRef, req.App, version, opts)
 
@@ -594,12 +605,7 @@ func (h *InstancesHandler) reconcileInstanceState(inst *store.Instance) {
 
 // containerOpts carries optional runtime flags for container startup.
 // These can come from the manifest (autostart) or the API request body.
-type containerOpts struct {
-	Privileged bool
-	Devices    []string
-	Volumes    []string
-	Env        map[string]string
-}
+type containerOpts = requirements.RunOpts
 
 // resolveContainerOpts builds containerOpts by merging the manifest entry
 // (if any) with explicit overrides from the API request. Request-level
@@ -611,10 +617,7 @@ func (h *InstancesHandler) resolveContainerOpts(app string, reqOpts *containerOp
 	if h.bootloader != nil {
 		if m := h.bootloader.Manifest(); m != nil {
 			if pkg, ok := m.GetPackage(app); ok {
-				opts.Privileged = pkg.Privileged
-				opts.Devices = pkg.Devices
-				opts.Volumes = pkg.Volumes
-				opts.Env = pkg.Env
+				opts = requirements.RunOptsFromPackage(pkg)
 			}
 		}
 	}
@@ -623,6 +626,12 @@ func (h *InstancesHandler) resolveContainerOpts(app string, reqOpts *containerOp
 	if reqOpts != nil {
 		if reqOpts.Privileged {
 			opts.Privileged = true
+		}
+		if reqOpts.IPC != "" {
+			opts.IPC = reqOpts.IPC
+		}
+		if reqOpts.SharedMemory {
+			opts.SharedMemory = true
 		}
 		if len(reqOpts.Devices) > 0 {
 			opts.Devices = append(opts.Devices, reqOpts.Devices...)
@@ -644,22 +653,13 @@ func (h *InstancesHandler) resolveContainerOpts(app string, reqOpts *containerOp
 }
 
 func (h *InstancesHandler) runContainer(instanceID, containerID, image, app, version string, opts containerOpts) {
-	args := []string{"run", "-d", "--name", containerID, "--network", "host"}
-
-	if opts.Privileged {
-		args = append(args, "--privileged")
-	}
-	for _, dev := range opts.Devices {
-		args = append(args, "--device", dev)
-	}
-	for _, vol := range opts.Volumes {
-		args = append(args, "-v", vol)
-	}
-	for k, v := range opts.Env {
-		args = append(args, "-e", k+"="+v)
+	if h.bootloader != nil {
+		opts = h.bootloader.PrepareRun(context.Background(), instanceID, app, opts)
+	} else {
+		opts.SharedMemory = false // no RouDi supervisor without the bootloader
 	}
 
-	args = append(args, image)
+	args := requirements.BuildRunArgs(containerID, image, opts)
 
 	if _, err := containerExec(args...); err != nil {
 		h.log.Error("INSTANCE START FAILED", "id", instanceID, "image", image, "err", err)
