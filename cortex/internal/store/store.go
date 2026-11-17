@@ -20,6 +20,7 @@ type Instance struct {
 	StoppedAt   *time.Time
 	PID         *int
 	ExitCode    *int
+	CommandPort int // loopback port the app's command server listens on (0 = none)
 }
 
 // --- Event ---
@@ -146,6 +147,31 @@ func (s *Store) HasRunningInstance(appName string) bool {
 	return false
 }
 
+// CurrentInstance returns the instance that currently represents an app: the
+// newest starting/running one, else the newest of any state. Restart and
+// update create a new instance with a new ID, so clients that address an app
+// by name keep working across them.
+func (s *Store) CurrentInstance(appName string) (*Instance, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var best *Instance
+	bestLive := false
+	for _, inst := range s.instances {
+		if inst.App != appName {
+			continue
+		}
+		live := inst.State == "running" || inst.State == "starting"
+		if best == nil || (live && !bestLive) || (live == bestLive && inst.StartedAt.After(best.StartedAt)) {
+			best, bestLive = inst, live
+		}
+	}
+	if best == nil {
+		return nil, false
+	}
+	cp := *best
+	return &cp, true
+}
+
 func (s *Store) CreateInstance(app, version, image string) *Instance {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -184,6 +210,32 @@ func (s *Store) SetInstanceState(id, state string, exitCode *int) bool {
 		inst.Error = ""
 	}
 	return true
+}
+
+// AllocateCommandPort assigns the lowest port in [min, max] that is not held
+// by another starting/running instance and for which isFree returns true.
+// Holding the lock across the scan keeps concurrent starts from colliding.
+func (s *Store) AllocateCommandPort(id string, min, max int, isFree func(int) bool) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	inst, ok := s.instances[id]
+	if !ok {
+		return 0, fmt.Errorf("instance %s not found", id)
+	}
+	held := make(map[int]bool)
+	for oid, o := range s.instances {
+		if oid != id && o.CommandPort != 0 && (o.State == "running" || o.State == "starting") {
+			held[o.CommandPort] = true
+		}
+	}
+	for p := min; p <= max; p++ {
+		if held[p] || (isFree != nil && !isFree(p)) {
+			continue
+		}
+		inst.CommandPort = p
+		return p, nil
+	}
+	return 0, fmt.Errorf("no free command port in %d-%d", min, max)
 }
 
 func (s *Store) SetInstanceError(id, msg string) {

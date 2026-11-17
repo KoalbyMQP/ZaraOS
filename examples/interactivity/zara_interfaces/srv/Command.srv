@@ -1,0 +1,8 @@
+# A command sent from the Driver Station (via cortex + command-bridge) to one app instance.
+string command
+string args_json
+---
+# HTTP-equivalent status (200 ok, 400 bad args, 404 unknown command, 500 handler error)
+int32 status
+# Same JSON body the HTTP transport returns: {"ok", "result", "error", "handler_us"}
+string reply_json
