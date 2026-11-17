@@ -7,12 +7,14 @@ A lightweight HTTP control plane for managing robot software. It runs on-device 
 ## Running
 
 **Docker:**
+
 ```sh
 docker build -t cortex .
 docker run -p 8080:8080 cortex
 ```
 
 **Local:**
+
 ```sh
 cd cortex
 go run ./cmd/
@@ -24,38 +26,42 @@ Server listens on `:8080`.
 
 ## Environment Variables
 
-| Variable | Description | Go Default | Dockerfile |
-|----------|-------------|------------|------------|
-| `GITHUB_ORG` | GitHub organization for fetching releases | `KoalbyMQP` | `KoalbyMQP` |
-| `GITHUB_REPOS` | Comma-separated repos to watch for app releases | *(none)* | `Core` |
-| `DOCKERHUB_ORG` | Docker Hub organization for container images | `koalbymqp` | `koalby` |
-| `REGISTRY_CACHE_TTL` | Cache duration for GitHub release data | `5m` | — |
+| Variable             | Description                                     | Go Default  | Dockerfile  |
+| -------------------- | ----------------------------------------------- | ----------- | ----------- |
+| `GITHUB_ORG`         | GitHub organization for fetching releases       | `KoalbyMQP` | `KoalbyMQP` |
+| `GITHUB_REPOS`       | Comma-separated repos to watch for app releases | _(none)_    | `Core`      |
+| `DOCKERHUB_ORG`      | Docker Hub organization for container images    | `koalbymqp` | `koalby`    |
+| `REGISTRY_CACHE_TTL` | Cache duration for GitHub release data          | `5m`        | —           |
 
 ---
 
 ## Authentication
 
-All endpoints except `/health`, `/auth/pair/*`, and `/shell` (ticket-based) require signed requests. Localhost (`127.0.0.1`) bypasses auth entirely for development.
+All endpoints except `/health`, `/auth/pair/*`, `/ui/*`, and `/shell` (ticket-based) require signed requests. Localhost (`127.0.0.1`) bypasses auth entirely for development.
 
 ### Pairing Flow
 
 **1. Start pairing — generates a 6-digit code printed to the server terminal:**
+
 ```sh
 POST /auth/pair/start
 ```
 
 **2. Complete pairing — submit the code to get a salt:**
+
 ```sh
 POST /auth/pair/complete
 { "code": "123456", "label": "my-client" }
 ```
 
 **3. Derive your token locally (never transmitted):**
+
 ```
 token = hex(HMAC-SHA256(key=code, message=salt))
 ```
 
 **4. Sign every request:**
+
 ```
 timestamp  = time.Now().UTC().Format(RFC3339)
 bodyHash   = hex(SHA256(raw_body))   # empty body → hash of ""
@@ -64,6 +70,7 @@ signature  = hex(HMAC-SHA256(key=token, message=message))
 ```
 
 Include on every request:
+
 ```
 X-Timestamp: <RFC3339>
 X-Signature: <hex>
@@ -78,9 +85,11 @@ X-Signature: <hex>
 ### Health
 
 #### `GET /health`
+
 Returns server health status. No authentication required.
 
 **Response `200`:**
+
 ```json
 { "status": "ok" }
 ```
@@ -90,9 +99,11 @@ Returns server health status. No authentication required.
 ### Authentication
 
 #### `POST /auth/pair/start`
+
 Initiate device pairing. Generates a 6-digit code printed to the server terminal (never returned in the response). **Public.**
 
 **Response `200`:**
+
 ```json
 { "expires_in": 120 }
 ```
@@ -100,14 +111,17 @@ Initiate device pairing. Generates a 6-digit code printed to the server terminal
 ---
 
 #### `POST /auth/pair/complete`
+
 Complete pairing by submitting the 6-digit code. Returns a salt used to derive the signing token client-side. **Public.**
 
 **Request:**
+
 ```json
 { "code": "123456", "label": "my-client" }
 ```
 
 **Response `200`:**
+
 ```json
 { "salt": "<hex>", "label": "my-client", "created_at": "<RFC3339>" }
 ```
@@ -117,28 +131,38 @@ Complete pairing by submitting the 6-digit code. Returns a salt used to derive t
 ---
 
 #### `GET /auth/sessions`
+
 List all active paired sessions.
 
 **Response `200`:**
+
 ```json
 {
-  "sessions": [
-    { "token_prefix": "a1b2c3", "label": "my-client", "created_at": "<RFC3339>", "last_seen": "<RFC3339>" }
-  ]
+    "sessions": [
+        {
+            "token_prefix": "a1b2c3",
+            "label": "my-client",
+            "created_at": "<RFC3339>",
+            "last_seen": "<RFC3339>"
+        }
+    ]
 }
 ```
 
 ---
 
 #### `POST /auth/revoke`
+
 Revoke a session by its token prefix.
 
 **Request:**
+
 ```json
 { "token_prefix": "a1b2c3" }
 ```
 
 **Response `200`:**
+
 ```json
 { "revoked": true }
 ```
@@ -150,29 +174,34 @@ Revoke a session by its token prefix.
 ### Identity
 
 #### `GET /identity`
+
 Get device identification information. Returns seeded defaults — not yet reading from real hardware.
 
 **Response `200`:**
+
 ```json
 {
-  "name": "robot-01",
-  "serial": "RPi4-ABC123",
-  "location": "warehouse-floor-3",
-  "firmware_version": "0.4.2"
+    "name": "robot-01",
+    "serial": "RPi4-ABC123",
+    "location": "warehouse-floor-3",
+    "firmware_version": "0.4.2"
 }
 ```
 
 ---
 
 #### `PUT /identity/location`
+
 Update the device's location.
 
 **Request:**
+
 ```json
 { "location": "warehouse-floor-5" }
 ```
 
 **Response `200`:**
+
 ```json
 { "location": "warehouse-floor-5" }
 ```
@@ -182,16 +211,18 @@ Update the device's location.
 ---
 
 #### `GET /ssh`
+
 Get SSH connection details for the device. Currently returns hardcoded values — not yet reading from real network config.
 
 **Response `200`:**
+
 ```json
 {
-  "host": "192.168.1.42",
-  "port": 22,
-  "user": "robot",
-  "hint": "ssh robot@192.168.1.42",
-  "name": "robot-01"
+    "host": "192.168.1.42",
+    "port": 22,
+    "user": "robot",
+    "hint": "ssh robot@192.168.1.42",
+    "name": "robot-01"
 }
 ```
 
@@ -200,29 +231,35 @@ Get SSH connection details for the device. Currently returns hardcoded values �
 ### Apps
 
 #### `GET /apps`
+
 List all available apps from the registry (GitHub releases).
 
 **Response `200`:**
+
 ```json
 {
-  "apps": [
-    { "name": "ros2-nav", "repo": "Core", "latest_version": "v1.2.3" }
-  ]
+    "apps": [{ "name": "ros2-nav", "repo": "Core", "latest_version": "v1.2.3" }]
 }
 ```
 
 ---
 
 #### `GET /apps/{name}/versions`
+
 Get version history for a specific app.
 
 **Response `200`:**
+
 ```json
 {
-  "app": "ros2-nav",
-  "versions": [
-    { "version": "v1.2.3", "published_at": "<RFC3339>", "changelog": "Bug fixes" }
-  ]
+    "app": "ros2-nav",
+    "versions": [
+        {
+            "version": "v1.2.3",
+            "published_at": "<RFC3339>",
+            "changelog": "Bug fixes"
+        }
+    ]
 }
 ```
 
@@ -237,35 +274,39 @@ Endpoints for inspecting and managing container images stored locally on the dev
 > Repository names contain slashes (e.g. `docker.io/koalbymqp/ros2-nav`). In URL path segments, **replace slashes with underscores**: `docker.io_koalbymqp_ros2-nav`.
 
 #### `GET /images`
+
 List all locally available container images, grouped by repository.
 
 **Response `200`:**
+
 ```json
 {
-  "images": [
-    {
-      "repository": "docker.io/koalbymqp/ros2-nav",
-      "tags": ["v1.2.3", "latest"],
-      "id": "sha256:abc123...",
-      "size": "142.5 MiB",
-      "created_at": "2025-06-15 09:30:00 +0000 UTC"
-    }
-  ]
+    "images": [
+        {
+            "repository": "docker.io/koalbymqp/ros2-nav",
+            "tags": ["v1.2.3", "latest"],
+            "id": "sha256:abc123...",
+            "size": "142.5 MiB",
+            "created_at": "2025-06-15 09:30:00 +0000 UTC"
+        }
+    ]
 }
 ```
 
 ---
 
 #### `GET /images/{name}/tags`
+
 List all tags for a specific image repository. Use underscores in place of slashes in `{name}`.
 
 **Example:** `GET /images/docker.io_koalbymqp_ros2-nav/tags`
 
 **Response `200`:**
+
 ```json
 {
-  "repository": "docker.io/koalbymqp/ros2-nav",
-  "tags": ["v1.2.3", "v1.2.2", "latest"]
+    "repository": "docker.io/koalbymqp/ros2-nav",
+    "tags": ["v1.2.3", "v1.2.2", "latest"]
 }
 ```
 
@@ -274,6 +315,7 @@ List all tags for a specific image repository. Use underscores in place of slash
 ---
 
 #### `DELETE /images/{name}`
+
 Remove a local image. Use underscores in place of slashes in `{name}`.
 
 **Query Parameters:**
@@ -285,10 +327,11 @@ Remove a local image. Use underscores in place of slashes in `{name}`.
 **Example:** `DELETE /images/docker.io_koalbymqp_ros2-nav?tag=v1.2.2`
 
 **Response `200`:**
+
 ```json
 {
-  "deleted": "docker.io/koalbymqp/ros2-nav:v1.2.2",
-  "detail": "Untagged: docker.io/koalbymqp/ros2-nav:v1.2.2"
+    "deleted": "docker.io/koalbymqp/ros2-nav:v1.2.2",
+    "detail": "Untagged: docker.io/koalbymqp/ros2-nav:v1.2.2"
 }
 ```
 
@@ -300,29 +343,33 @@ Remove a local image. Use underscores in place of slashes in `{name}`.
 ### Instances
 
 #### `GET /instances`
+
 List all container instances.
 
 **Response `200`:**
+
 ```json
 {
-  "instances": [
-    {
-      "id": "ros2-nav-v1.2.3-1700000000",
-      "app": "ros2-nav",
-      "version": "v1.2.3",
-      "image": "docker.io/koalbymqp/ros2-nav:v1.2.3",
-      "state": "running",
-      "error": null,
-      "started_at": "<RFC3339>",
-      "stopped_at": null
-    }
-  ]
+    "instances": [
+        {
+            "id": "ros2-nav-v1.2.3-1700000000",
+            "app": "ros2-nav",
+            "version": "v1.2.3",
+            "image": "docker.io/koalbymqp/ros2-nav:v1.2.3",
+            "state": "running",
+            "error": null,
+            "started_at": "<RFC3339>",
+            "stopped_at": null,
+            "ui": { "descriptor_url": "/ui/ros2-nav/v1.2.3/zara-ui.json" }
+        }
+    ]
 }
 ```
 
 ---
 
 #### `GET /instances/{id}`
+
 Get detailed information for a specific instance. Includes `container_id` and `exit_code` beyond what the list endpoint returns.
 
 **Response `200`:** Full instance object.
@@ -332,9 +379,11 @@ Get detailed information for a specific instance. Includes `container_id` and `e
 ---
 
 #### `POST /instances`
+
 Start a new container instance. The `app` field is required. If `version` is omitted or `"latest"`, the newest version from the registry is used. Optionally override the `image`.
 
 **Request:**
+
 ```json
 { "app": "ros2-nav", "version": "latest", "image": "<optional-override>" }
 ```
@@ -348,9 +397,11 @@ Start a new container instance. The `app` field is required. If `version` is omi
 ---
 
 #### `DELETE /instances/{id}`
+
 Stop a running container instance.
 
 **Response `200`:**
+
 ```json
 { "id": "ros2-nav-v1.2.3-1700000000", "state": "stopped" }
 ```
@@ -360,17 +411,19 @@ Stop a running container instance.
 ---
 
 #### `POST /instances/{id}/restart`
+
 Restart an instance (stops old, starts new with same version).
 
 **Response `201`:**
+
 ```json
 {
-  "old_id": "...",
-  "new_id": "...",
-  "app": "ros2-nav",
-  "version": "v1.2.3",
-  "state": "starting",
-  "started_at": "<RFC3339>"
+    "old_id": "...",
+    "new_id": "...",
+    "app": "ros2-nav",
+    "version": "v1.2.3",
+    "state": "starting",
+    "started_at": "<RFC3339>"
 }
 ```
 
@@ -379,17 +432,19 @@ Restart an instance (stops old, starts new with same version).
 ---
 
 #### `POST /instances/{id}/update`
+
 Update an instance to the latest available version. If already on the latest, returns `200` with no changes.
 
 **Response `201`:**
+
 ```json
 {
-  "old_id": "...",
-  "old_version": "v1.2.2",
-  "new_id": "...",
-  "new_version": "v1.2.3",
-  "state": "starting",
-  "started_at": "<RFC3339>"
+    "old_id": "...",
+    "old_version": "v1.2.2",
+    "new_id": "...",
+    "new_version": "v1.2.3",
+    "state": "starting",
+    "started_at": "<RFC3339>"
 }
 ```
 
@@ -398,6 +453,7 @@ Update an instance to the latest available version. If already on the latest, re
 ---
 
 #### `GET /instances/{id}/logs`
+
 Fetch container logs. Supports one-shot and streaming modes.
 
 **Query Parameters:**
@@ -414,25 +470,29 @@ Fetch container logs. Supports one-shot and streaming modes.
 **SSE Event Types:**
 
 **`log`** — a container log line:
+
 ```
 id: 42
 event: log
 data: {"ts":"2026-04-12T14:30:05.123Z","seq":42,"stream":"stdout","content":"Navigation started"}
 ```
-| Field | Type | Description |
-|-------|------|-------------|
-| `ts` | string (RFC3339Nano) | Timestamp from the container runtime |
-| `seq` | int | Monotonically incrementing sequence number |
-| `stream` | string | `"stdout"` or `"stderr"` |
-| `content` | string | The log line text |
+
+| Field     | Type                 | Description                                |
+| --------- | -------------------- | ------------------------------------------ |
+| `ts`      | string (RFC3339Nano) | Timestamp from the container runtime       |
+| `seq`     | int                  | Monotonically incrementing sequence number |
+| `stream`  | string               | `"stdout"` or `"stderr"`                   |
+| `content` | string               | The log line text                          |
 
 **`heartbeat`** — keep-alive sent every 15 seconds:
+
 ```
 event: heartbeat
 data: {"ts":"2026-04-12T14:30:15.000Z"}
 ```
 
 **`error`** — terminal event (e.g. stream ended):
+
 ```
 event: error
 data: {"ts":"2026-04-12T14:30:20.000Z","message":"stream ended"}
@@ -445,15 +505,17 @@ data: {"ts":"2026-04-12T14:30:20.000Z","message":"stream ended"}
 ---
 
 #### `GET /instances/{id}/health`
+
 Health check for a specific instance. Checks if the container is running via nerdctl.
 
 **Response `200`:**
+
 ```json
 {
-  "id": "...",
-  "healthy": true,
-  "last_checked": "<RFC3339>",
-  "output": "OK"
+    "id": "...",
+    "healthy": true,
+    "last_checked": "<RFC3339>",
+    "output": "OK"
 }
 ```
 
@@ -462,19 +524,36 @@ Health check for a specific instance. Checks if the container is running via ner
 ---
 
 #### `GET /instances/{id}/metrics`
+
 Get CPU, memory, and uptime metrics for an instance via nerdctl stats.
 
 **Response `200`:**
+
 ```json
 {
-  "id": "...",
-  "cpu_percent": 0.42,
-  "memory_mb": 84.5,
-  "uptime_seconds": 3600
+    "id": "...",
+    "cpu_percent": 0.42,
+    "memory_mb": 84.5,
+    "uptime_seconds": 3600
 }
 ```
 
 **Response `404`:** Instance not found.
+
+---
+
+### App UI
+
+Lets an app show its own pages in the Driver Station. See [App UI bundles](#app-ui-bundles) for what an app image has to ship.
+
+#### `GET /ui/{app}/{version}/{path...}`
+
+Serve one file of an app version's UI bundle: the `zara-ui.json` descriptor, the Module Federation entry it points to, and their chunks and stylesheets. **Public** — a browser loads these as scripts and stylesheets, which cannot carry signing headers.
+
+Responses carry an `ETag` and `Cache-Control: no-cache`, so a rebuilt image is picked up on the next load. In the descriptor, `appId` and `appVersion` are always the app name and version cortex runs the instance as, whatever the image declared.
+
+**Response `200`:** File contents.
+**Response `404`:** The app version has no UI bundle, or the bundle has no such file.
 
 ---
 
@@ -483,18 +562,32 @@ Get CPU, memory, and uptime metrics for an instance via nerdctl stats.
 > Diagnostic tests currently return seeded/mock results — not yet running real hardware checks.
 
 #### `GET /diagnostics`
+
 Run all diagnostic tests and return aggregated results.
 
 **Response `200`:**
+
 ```json
 {
-  "ran_at": "<RFC3339>",
-  "passed": 3,
-  "failed": 1,
-  "results": [
-    { "name": "lidar-ping", "passed": true, "output": "LIDAR responding at 10Hz", "duration_ms": 320, "ran_at": "<RFC3339>" },
-    { "name": "camera-check", "passed": false, "output": "No device found at /dev/video0", "duration_ms": 50, "ran_at": "<RFC3339>" }
-  ]
+    "ran_at": "<RFC3339>",
+    "passed": 3,
+    "failed": 1,
+    "results": [
+        {
+            "name": "lidar-ping",
+            "passed": true,
+            "output": "LIDAR responding at 10Hz",
+            "duration_ms": 320,
+            "ran_at": "<RFC3339>"
+        },
+        {
+            "name": "camera-check",
+            "passed": false,
+            "output": "No device found at /dev/video0",
+            "duration_ms": 50,
+            "ran_at": "<RFC3339>"
+        }
+    ]
 }
 ```
 
@@ -509,6 +602,7 @@ Run all diagnostic tests and return aggregated results.
 ---
 
 #### `GET /diagnostics/history`
+
 Get historical diagnostic run summaries. Currently returns generated mock data (max 5 entries) — not yet persisting real run history.
 
 **Query Parameters:**
@@ -517,22 +611,29 @@ Get historical diagnostic run summaries. Currently returns generated mock data (
 | `limit` | `20` | Max number of history entries (capped at 5 with mock data) |
 
 **Response `200`:**
+
 ```json
 {
-  "history": [
-    { "ran_at": "<RFC3339>", "passed": 4, "failed": 0 }
-  ]
+    "history": [{ "ran_at": "<RFC3339>", "passed": 4, "failed": 0 }]
 }
 ```
 
 ---
 
 #### `GET /diagnostics/{test}`
+
 Get the last result for a specific diagnostic test.
 
 **Response `200`:**
+
 ```json
-{ "name": "lidar-ping", "passed": true, "output": "LIDAR responding at 10Hz", "duration_ms": 320, "ran_at": "<RFC3339>" }
+{
+    "name": "lidar-ping",
+    "passed": true,
+    "output": "LIDAR responding at 10Hz",
+    "duration_ms": 320,
+    "ran_at": "<RFC3339>"
+}
 ```
 
 **Response `404`:** Test not found.
@@ -540,11 +641,19 @@ Get the last result for a specific diagnostic test.
 ---
 
 #### `POST /diagnostics/{test}/run`
+
 Run a specific diagnostic test on demand.
 
 **Response `200`:**
+
 ```json
-{ "name": "lidar-ping", "passed": true, "output": "LIDAR responding at 10Hz", "duration_ms": 320, "ran_at": "<RFC3339>" }
+{
+    "name": "lidar-ping",
+    "passed": true,
+    "output": "LIDAR responding at 10Hz",
+    "duration_ms": 320,
+    "ran_at": "<RFC3339>"
+}
 ```
 
 **Response `404`:** Test not found.
@@ -556,37 +665,46 @@ Run a specific diagnostic test on demand.
 > ROS endpoints currently return mock/seeded data.
 
 #### `GET /ros/nodes`
+
 List active ROS 2 nodes.
 
 **Response `200`:**
+
 ```json
 {
-  "nodes": [
-    { "name": "/navigation", "namespace": "/", "status": "active" }
-  ]
+    "nodes": [{ "name": "/navigation", "namespace": "/", "status": "active" }]
 }
 ```
 
 ---
 
 #### `GET /ros/topics`
+
 List ROS 2 topics with type and subscriber info.
 
 **Response `200`:**
+
 ```json
 {
-  "topics": [
-    { "name": "/cmd_vel", "type": "geometry_msgs/msg/Twist", "publishers": 1, "subscribers": 2 }
-  ]
+    "topics": [
+        {
+            "name": "/cmd_vel",
+            "type": "geometry_msgs/msg/Twist",
+            "publishers": 1,
+            "subscribers": 2
+        }
+    ]
 }
 ```
 
 ---
 
 #### `GET /ros/topic/{name}/echo`
+
 Echo recent messages from a ROS topic. Use underscores in place of slashes for nested topic names.
 
 **Response `200`:**
+
 ```json
 { "topic": "/cmd_vel", "type": "geometry_msgs/msg/Twist", "messages": [] }
 ```
@@ -594,29 +712,33 @@ Echo recent messages from a ROS topic. Use underscores in place of slashes for n
 ---
 
 #### `GET /ros/services`
+
 List available ROS 2 services.
 
 **Response `200`:**
+
 ```json
 {
-  "services": [
-    { "name": "/navigation/reset", "type": "std_srvs/srv/Trigger" }
-  ]
+    "services": [
+        { "name": "/navigation/reset", "type": "std_srvs/srv/Trigger" }
+    ]
 }
 ```
 
 ---
 
 #### `GET /ros/graph`
+
 Get the ROS node-topic graph showing connections between nodes.
 
 **Response `200`:**
+
 ```json
 {
-  "nodes": ["..."],
-  "edges": [
-    { "from": "/lidar_driver", "to": "/navigation", "topic": "/scan" }
-  ]
+    "nodes": ["..."],
+    "edges": [
+        { "from": "/lidar_driver", "to": "/navigation", "topic": "/scan" }
+    ]
 }
 ```
 
@@ -625,6 +747,7 @@ Get the ROS node-topic graph showing connections between nodes.
 ### Events
 
 #### `GET /events`
+
 Query the event log with optional filtering. Events are retained in-memory (last 500).
 
 **Query Parameters:**
@@ -635,11 +758,17 @@ Query the event log with optional filtering. Events are retained in-memory (last
 | `limit` | `50` | Max events to return |
 
 **Response `200`:**
+
 ```json
 {
-  "events": [
-    { "id": "evt_0001", "type": "instance_started", "timestamp": "<RFC3339>", "data": { "app": "ros2-nav" } }
-  ]
+    "events": [
+        {
+            "id": "evt_0001",
+            "type": "instance_started",
+            "timestamp": "<RFC3339>",
+            "data": { "app": "ros2-nav" }
+        }
+    ]
 }
 ```
 
@@ -650,9 +779,11 @@ Query the event log with optional filtering. Events are retained in-memory (last
 ### Shell (WebSocket)
 
 #### `POST /shell/ticket`
+
 Issue a one-time ticket for WebSocket shell access. Ticket expires after 30 seconds.
 
 **Response `200`:**
+
 ```json
 { "ticket": "<base64-token>", "expires_in": 30 }
 ```
@@ -660,9 +791,11 @@ Issue a one-time ticket for WebSocket shell access. Ticket expires after 30 seco
 ---
 
 #### `GET /shell?ticket=<ticket>`
+
 Upgrade to a WebSocket connection for an interactive shell session. **Public** (authenticated via ticket). Spawns `/bin/sh` with a full PTY.
 
 **WebSocket Protocol:**
+
 - **Binary frames (server → client):** PTY output
 - **Binary frames (client → server):** Keyboard input (written to PTY)
 - **Text frames (client → server):** Control messages only — `{"type": "resize", "cols": 120, "rows": 40}`
@@ -674,6 +807,7 @@ Connection stays open until the client disconnects or the shell process exits.
 ## Data Models
 
 ### Instance
+
 ```
 id             string    — Unique ID (app-version-timestamp)
 app            string    — App name
@@ -686,9 +820,11 @@ started_at     time      — When the instance was created
 stopped_at     time?     — When the instance was stopped
 pid            int?      — OS process ID
 exit_code      int?      — Process exit code
+ui             object?   — { descriptor_url } when the image ships a UI bundle
 ```
 
 ### Event
+
 ```
 id             string           — Sequential event ID (evt_XXXX)
 type           string           — Event type name
@@ -697,6 +833,7 @@ data           map[string]any   — Arbitrary event payload
 ```
 
 ### DiagResult
+
 ```
 name           string    — Test name
 passed         bool      — Whether the test passed
@@ -706,6 +843,7 @@ ran_at         time      — When the test was run
 ```
 
 ### Identity
+
 ```
 name              string — Device name
 serial            string — Hardware serial number
@@ -714,6 +852,7 @@ firmware_version  string — Current firmware version
 ```
 
 ### LocalImage
+
 ```
 repository     string     — Image repository name (e.g. docker.io/koalbymqp/ros2-nav)
 tags           []string   — All tags present locally
@@ -723,6 +862,7 @@ created_at     string     — When the image was created
 ```
 
 ### App (Registry)
+
 ```
 name           string    — App name
 repo           string    — Source GitHub repository
@@ -730,11 +870,31 @@ versions       []Version — Version history (newest first)
 ```
 
 ### Version
+
 ```
 version        string — Semantic version tag
 published_at   time   — Release date
 changelog      string — Release notes
 ```
+
+---
+
+## App UI bundles
+
+An app can ship pages for the Driver Station inside its image, at `/etc/zaraos/ui/`:
+
+```
+/etc/zaraos/ui/
+  zara-ui.json        descriptor: which pages and components the app exposes
+  mf-manifest.json    Module Federation entry named by the descriptor
+  ...                 the rest of the federation build (chunks, CSS)
+```
+
+The descriptor format and the React page contract are documented in the Driver Station README.
+
+The first time cortex reports a running instance, it reads the bundle out of the instance's image in the background (`tar` in a throwaway container, so the image needs `tar`). Once loaded, every instance of that app and version carries `"ui": {"descriptor_url": "/ui/{app}/{version}/zara-ui.json"}`; the Driver Station resolves it against the robot origin. An image without the directory has no UI and its instances have no `ui` field.
+
+Bundles are held in memory, capped at 64 MiB and 4096 files each, and only regular files are served. Each new instance of an app version reloads the bundle from its image; if that image has no usable bundle, the previous one is dropped.
 
 ---
 
