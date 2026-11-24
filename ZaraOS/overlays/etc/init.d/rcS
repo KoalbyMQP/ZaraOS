@@ -21,6 +21,7 @@ mount -o remount,rw /
 [ -d /dev/pts ] || mkdir /dev/pts
 mount -t devpts devpts /dev/pts
 mount -t tmpfs tmpfs /tmp
+mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs /run
 
 # Now psplash has a chance of working
 psplash < /dev/null &

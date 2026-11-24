@@ -275,3 +275,7 @@ BR2_PACKAGE_CA_CERTIFICATES=y
 BR2_PACKAGE_DBUS=y
 BR2_PACKAGE_BLUEZ5_UTILS=y
 BR2_PACKAGE_BLUEZ5_UTILS_CLIENT=y
+# Bluetooth firmware for the Pi's BCM4345C0 radio (linux-firmware above only
+# provides the WiFi side). Needed for the setup wizard's BLE "Find IP" service.
+BR2_PACKAGE_BRCMFMAC_SDIO_FIRMWARE_RPI=y
+BR2_PACKAGE_BRCMFMAC_SDIO_FIRMWARE_RPI_BT=y
