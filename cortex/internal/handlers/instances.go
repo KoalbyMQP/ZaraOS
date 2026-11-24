@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"cortex/internal/appui"
 	"cortex/internal/logger"
 	"cortex/internal/registry"
 	"cortex/internal/requirements"
@@ -70,14 +71,18 @@ type taggedLine struct {
 }
 
 type InstancesHandler struct {
+	ui         *appui.Store // set after construction via SetAppUI
 	store      *store.Store
 	registry   *registry.Registry
 	log        *logger.Logger
 	bootloader *requirements.Bootloader // set after construction via SetBootloader
+	commands   commandTransport
 }
 
 func NewInstancesHandler(s *store.Store, r *registry.Registry, l *logger.Logger) *InstancesHandler {
-	return &InstancesHandler{store: s, registry: r, log: l}
+	h := &InstancesHandler{store: s, registry: r, log: l, commands: newCommandTransport()}
+	l.Info("command transport", "transport", h.commands.Name())
+	return h
 }
 
 // SetBootloader wires the requirements bootloader so POST /instances can
@@ -96,6 +101,11 @@ func (h *InstancesHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /instances/{id}/logs", h.Logs)
 	mux.HandleFunc("GET /instances/{id}/health", h.Health)
 	mux.HandleFunc("GET /instances/{id}/metrics", h.Metrics)
+	mux.HandleFunc("POST /instances/{id}/command", h.Command)
+	mux.HandleFunc("GET /instances/{id}/commands", h.ListCommands)
+	mux.HandleFunc("GET /instances/{id}/telemetry", h.Telemetry)
+	mux.HandleFunc("GET /instances/{id}/controls", h.ListControls)
+	mux.HandleFunc("PUT /instances/{id}/controls/{name}", h.SetControl)
 }
 
 func (h *InstancesHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -103,7 +113,7 @@ func (h *InstancesHandler) List(w http.ResponseWriter, r *http.Request) {
 	out := make([]map[string]any, 0, len(instances))
 	for _, inst := range instances {
 		h.reconcileInstanceState(inst)
-		out = append(out, instanceSummary(inst))
+		out = append(out, h.withUI(inst, instanceSummary(inst)))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"instances": out})
 }
@@ -115,7 +125,7 @@ func (h *InstancesHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.reconcileInstanceState(inst)
-	writeJSON(w, http.StatusOK, instanceFull(inst))
+	writeJSON(w, http.StatusOK, h.withUI(inst, instanceFull(inst)))
 }
 
 func (h *InstancesHandler) Start(w http.ResponseWriter, r *http.Request) {
@@ -199,7 +209,7 @@ func (h *InstancesHandler) Start(w http.ResponseWriter, r *http.Request) {
 	}
 
 	inst, _ = h.store.GetInstance(inst.ID)
-	writeJSON(w, http.StatusCreated, instanceSummary(inst))
+	writeJSON(w, http.StatusCreated, h.withUI(inst, instanceSummary(inst)))
 }
 
 // autoDiscover reads the embedded zaraos.json from a container image
@@ -658,6 +668,10 @@ func (h *InstancesHandler) runContainer(instanceID, containerID, image, app, ver
 	for k, v := range opts.Env {
 		args = append(args, "-e", k+"="+v)
 	}
+	// Command-system env goes last so it overrides anything user-supplied.
+	for k, v := range h.commandEnv(instanceID) {
+		args = append(args, "-e", k+"="+v)
+	}
 
 	args = append(args, image)
 
@@ -836,5 +850,6 @@ func instanceFull(inst *store.Instance) map[string]any {
 	m := instanceSummary(inst)
 	m["container_id"] = inst.ContainerID
 	m["exit_code"] = inst.ExitCode
+	m["command_port"] = inst.CommandPort
 	return m
 }

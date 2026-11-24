@@ -1,0 +1,25 @@
+# Shared base for the interactivity spike. Both transports run from images
+# built on this, so the benchmark compares transports, not base images.
+#   docker build -f Dockerfile.base -t zara-commands-base:dev .
+FROM ros:humble
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ros-humble-rmw-cyclonedds-cpp \
+        python3-colcon-common-extensions \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+ENV ROS_DOMAIN_ID=42
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+
+COPY zara_interfaces /opt/zara/src/zara_interfaces
+RUN . /opt/ros/humble/setup.sh \
+    && cd /opt/zara \
+    && colcon build --merge-install \
+    && rm -rf build log src
+
+COPY zara_commands /opt/zara/python/zara_commands
+ENV PYTHONPATH=/opt/zara/python
+
+COPY entrypoint.sh /opt/zara/entrypoint.sh
+RUN chmod +x /opt/zara/entrypoint.sh
+ENTRYPOINT ["/opt/zara/entrypoint.sh"]

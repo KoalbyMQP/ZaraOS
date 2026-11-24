@@ -1,0 +1,103 @@
+/*
+ * CSS Modules: every class gets a build-unique name, so these rules can't leak into the
+ * Driver Station, and the page doesn't depend on host classes (the host only generates
+ * Tailwind for its own sources). The host's reset strips heading styles and gives the
+ * page no padding, so the page sets its own.
+ */
+.page {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+  max-width: 720px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.logo {
+  width: 40px;
+  height: 40px;
+}
+
+.title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 0;
+  opacity: 0.7;
+}
+
+.card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 10px;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.input {
+  flex: 1;
+  min-width: 160px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+}
+
+.button {
+  padding: 6px 14px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.error {
+  color: #d33;
+}
+
+.value {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, monospace;
+}
+
+.bar {
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, currentColor 15%, transparent);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: currentColor;
+  transition: width 0.1s linear;
+}
+
+.list {
+  margin: 0;
+  padding-left: 20px;
+}

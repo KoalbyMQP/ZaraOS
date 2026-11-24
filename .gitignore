@@ -62,3 +62,7 @@ local.mk
 /output-qemu/*
 
 cortex/cortex-arm
+
+# Python
+__pycache__/
+*.pyc
